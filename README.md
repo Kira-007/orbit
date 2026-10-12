@@ -61,7 +61,11 @@ Quit Orbit from its tray, then run `python3 uninstall.py`. It removes only the p
 ## Development
 
 ```sh
-node --test test/*.test.cjs
+node --test tests/*.test.cjs
 ```
 
 This is an experimental Hyprland application, tested on Arch Linux. Other Linux distributions and multi-monitor layouts still need broader testing. Windows, macOS, legacy Hyprland and other compositors are not supported.
+
+## Repository layout
+
+See [Architecture](docs/architecture.md) and [Contributing](CONTRIBUTING.md) for source layout and development checks.

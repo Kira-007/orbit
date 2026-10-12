@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict');
-const {DragDirection}=require('../drag-direction.js');
+const {DragDirection}=require('../src/renderer/drag-direction.js');
 test('deliberate turns require distance and sustained motion',()=>{
  const right=new DragDirection(100,-1);
  assert.equal(right.update(108,0),-1);

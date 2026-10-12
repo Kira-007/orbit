@@ -1,6 +1,6 @@
 """Per-user integration paths and managed configuration blocks."""
 import os,pathlib,re,shlex
-ROOT=pathlib.Path(__file__).resolve().parent
+ROOT=pathlib.Path(__file__).resolve().parents[1]
 HOME=pathlib.Path.home()
 CONFIG=pathlib.Path(os.environ.get('XDG_CONFIG_HOME',HOME/'.config'))
 DATA=pathlib.Path(os.environ.get('XDG_DATA_HOME',HOME/'.local/share'))

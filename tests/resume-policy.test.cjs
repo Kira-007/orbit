@@ -1,2 +1,2 @@
-const test=require('node:test'),assert=require('node:assert/strict');const {inactiveQueueError}=require('../resume-policy.cjs');
+const test=require('node:test'),assert=require('node:assert/strict');const {inactiveQueueError}=require('../src/main/resume-policy.cjs');
 test('closed threads may resume but ambiguous failures never duplicate a message',()=>{assert.equal(inactiveQueueError({code:1},'Thread is not loaded'),true);assert.equal(inactiveQueueError({code:1},'Session is inactive'),true);assert.equal(inactiveQueueError({code:1},'Authentication failed'),false);assert.equal(inactiveQueueError({killed:true},'Thread not loaded'),false);assert.equal(inactiveQueueError(null,'Thread not loaded'),false);});

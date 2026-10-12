@@ -1,4 +1,4 @@
-const test=require('node:test'),assert=require('node:assert/strict');const {normalizeSettings}=require('../settings.cjs');const {placePet}=require('../geometry.cjs');
+const test=require('node:test'),assert=require('node:assert/strict');const {normalizeSettings}=require('../src/main/settings.cjs');const {placePet}=require('../src/main/geometry.cjs');
 test('customization validates colors, names, expressions, and size bounds',()=>{const p=normalizeSettings({petScale:10,petName:'  Nova  ',bodyColor:'invalid',accentColor:'#12ab34',face:'focused'});assert.equal(p.petScale,1.6);assert.equal(p.petName,'Nova');assert.equal(p.bodyColor,'#90bbb7');assert.equal(p.accentColor,'#12ab34');assert.equal(p.face,'focused');assert.equal(normalizeSettings({petScale:-1}).petScale,.6);});
 test('scaled pet can reach corners without moving outside the screen',()=>{const area={x:0,y:0,width:1920,height:1200};for(const scale of [.6,1,1.6]){const x=1920-150*scale,y=1200-129*scale,p=placePet(x,y,area,374,630,scale);assert(Math.abs(p.x+p.petX-x)<=1);assert(Math.abs(p.y+p.petY-y)<=1);assert(p.petX>=0&&p.petX+150*scale<=375);assert(p.petY>=0&&p.petY+129*scale<=631);}});
 

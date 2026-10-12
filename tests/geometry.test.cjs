@@ -1,4 +1,4 @@
-const test=require('node:test'),assert=require('node:assert/strict');const {placePet}=require('../geometry.cjs');
+const test=require('node:test'),assert=require('node:assert/strict');const {placePet}=require('../src/main/geometry.cjs');
 test('pet reaches every corner while its transparent window stays on screen',()=>{const area={x:0,y:0,width:1920,height:1200};for(const [x,y] of [[0,0],[1770,0],[0,1071],[1770,1071]]){const p=placePet(x,y,area);assert.equal(p.x+p.petX,x);assert.equal(p.y+p.petY,y);assert(p.x>=0&&p.y>=0&&p.x+374<=1920&&p.y+630<=1200);}});
 test('near the bottom, controls fit above without moving the pet',()=>{const p=placePet(800,900,{x:0,y:0,width:1920,height:1200});assert.equal(p.above,true);assert.equal(p.petY,330);assert.equal(p.y+p.petY,900);});
 

@@ -1,6 +1,6 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const net=require('node:net'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {createCursorReader,toScreenPoint}=require('../drag-cursor.cjs');
+const {createCursorReader,toScreenPoint}=require('../src/main/drag-cursor.cjs');
 
 test('compositor coordinates map to the physical pixels used by XWayland',()=>{
  const monitor={name:'eDP-1',x:0,y:0,width:1920,height:1200,scale:1.2};

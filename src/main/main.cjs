@@ -28,7 +28,7 @@ function persistPreferences(value){
 function showSettingsWindow(){
  if(settingsWin&&!settingsWin.isDestroyed()){settingsWin.show();settingsWin.focus();return;}
  settingsWin=new BrowserWindow({title:'Orbit Settings',width:500,height:610,minWidth:420,minHeight:480,parent:win,show:false,backgroundColor:'#1e1c21',webPreferences:{preload:path.join(__dirname,'settings-preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
- settingsWin.setAlwaysOnTop(true,'floating');settingsWin.loadFile(path.join(__dirname,'settings.html'));settingsWin.once('ready-to-show',()=>{settingsWin.show();settingsWin.focus();});settingsWin.on('closed',()=>settingsWin=null);settingsWin.webContents.setWindowOpenHandler(()=>({action:'deny'}));
+ settingsWin.setAlwaysOnTop(true,'floating');settingsWin.loadFile(path.join(__dirname,'../renderer/settings.html'));settingsWin.once('ready-to-show',()=>{settingsWin.show();settingsWin.focus();});settingsWin.on('closed',()=>settingsWin=null);settingsWin.webContents.setWindowOpenHandler(()=>({action:'deny'}));
 }
 function save(){if(!win||win.isDestroyed())return;try{fs.mkdirSync(stateDir,{recursive:true});const b=win.getBounds();fs.writeFileSync(path.join(stateDir,'position.json'),JSON.stringify({x:b.x+layout.petX,y:b.y+layout.petY}));}catch{}}
 function movePet(x,y,dragMotion){
@@ -48,7 +48,7 @@ function shape(){if(inputShapeReady&&inputShape?.stdin.writable)inputShape.stdin
 function startInputShape(){
  if(!process.env.DISPLAY)return;
  const handle=win.getNativeWindowHandle();const id=handle.readUInt32LE(0);
- inputShape=spawn('python3',[path.join(__dirname,'input-shape.py'),String(id)],{stdio:['pipe','pipe','pipe']});
+ inputShape=spawn('python3',[path.join(__dirname,'../../scripts/input-shape.py'),String(id)],{stdio:['pipe','pipe','pipe']});
  inputShape.stdin.on('error',()=>{});
  inputShape.stdout.once('data',()=>{if(!win||win.isDestroyed())return;win.setIgnoreMouseEvents(false);ignoring=false;inputShapeReady=true;shape();});
  inputShape.on('error',()=>{inputShapeReady=false;});inputShape.on('exit',()=>{inputShapeReady=false;});
@@ -93,10 +93,10 @@ app.whenReady().then(()=>{
  win=new BrowserWindow({title:'Orbit Agent Pet',...sizes.open,height:workArea.height,x:placed.x,y:placed.y,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:true,maximizable:false,minimizable:false,skipTaskbar:true,alwaysOnTop:true,show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});win.setAlwaysOnTop(true,'floating');win.on('page-title-updated',e=>e.preventDefault());win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
  hyprInput=createHyprInputPolicy(process.pid);
- win.loadFile(path.join(__dirname,'index.html'));win.once('ready-to-show',()=>{startInputShape();win.showInactive();});
+ win.loadFile(path.join(__dirname,'../renderer/index.html'));win.once('ready-to-show',()=>{startInputShape();win.showInactive();});
  win.setIgnoreMouseEvents(true,{forward:true});ignoring=true;execFile('hyprctl',['monitors','-j'],{timeout:1000},(err,out)=>{if(!err)try{hyprMonitors=JSON.parse(out);}catch{}});pointerTimer=setInterval(pointerPolicy,60);
  activity=new Activity(store,stateDir);activity.poll();refreshUsage();timer=setInterval(()=>{activity.poll();send();},1000);
- const icon=nativeImage.createFromPath(path.join(__dirname,'tray.png'));if(!icon.isEmpty()){tray=new Tray(icon);tray.setToolTip('Orbit · your agent companion');tray.setContextMenu(Menu.buildFromTemplate([{label:'Show companion',click:()=>win.show()},{label:'Hide companion',click:()=>win.hide()},{type:'separator'},{label:'Quit Orbit',click:()=>app.quit()}]));tray.on('click',()=>win.isVisible()?win.hide():win.show());}
+ const icon=nativeImage.createFromPath(path.join(__dirname,'../../assets/icons/tray.png'));if(!icon.isEmpty()){tray=new Tray(icon);tray.setToolTip('Orbit · your agent companion');tray.setContextMenu(Menu.buildFromTemplate([{label:'Show companion',click:()=>win.show()},{label:'Hide companion',click:()=>win.hide()},{type:'separator'},{label:'Quit Orbit',click:()=>app.quit()}]));tray.on('click',()=>win.isVisible()?win.hide():win.show());}
 });
 ipcMain.on('ready',(_,viewport)=>{if(Number.isFinite(viewport?.height)&&viewport.height>0)canvasHeight=viewport.height;if(startupAnchor){const bounds=win.getBounds();layout.petY=startupAnchor.y-bounds.y;startupAnchor=null;}layout.petY=Math.max(0,Math.min(layout.petY,(canvasHeight||win.getBounds().height)-129*(preferences?.petScale||1)));send();win.webContents.send('layout',layout);});
 ipcMain.on('pet-viewport',(_,viewport)=>{if(!Number.isFinite(viewport?.height)||viewport.height<=0)return;canvasHeight=viewport.height;if(startupAnchor){const bounds=win.getBounds();layout.petY=startupAnchor.y-bounds.y;startupAnchor=null;}layout.petY=Math.max(0,Math.min(layout.petY,canvasHeight-129*(preferences?.petScale||1)));win.webContents.send('layout',layout);save();});
@@ -121,7 +121,7 @@ ipcMain.handle('focus-agent',(_,provider)=>new Promise(resolve=>{
 }));
 function openThreads(provider){
  if(!PROVIDERS.includes(provider))return [];
- let threads=[];try{threads=JSON.parse(execFileSync('python3',[path.join(__dirname,'threads.py'),provider],{timeout:2000,encoding:'utf8'}));}catch{}
+ let threads=[];try{threads=JSON.parse(execFileSync('python3',[path.join(__dirname,'../../scripts/threads.py'),provider],{timeout:2000,encoding:'utf8'}));}catch{}
  for(const session of store.snapshot().sessions)if(session.provider===provider&&!threads.some(t=>t.id===session.session))threads.push({id:session.session,name:session.title,path:session.workspace});
  return threads;
 }

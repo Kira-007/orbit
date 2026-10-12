@@ -11,18 +11,18 @@ class InstallTest(unittest.TestCase):
    def run(cmd,**kwargs):
     import subprocess
     return subprocess.CompletedProcess(cmd,0,stdout='' if cmd[1]=='configerrors' else 'ok\n',stderr='')
-   sys.path.insert(0,str(ROOT))
+   sys.path.insert(0,str(ROOT/'scripts'))
    with patch.dict(os.environ,env),patch('shutil.which',return_value='/bin/tool'),patch('subprocess.run',side_effect=run):
     sys.modules.pop('integration',None)
     for _ in range(2):
-     with patch.object(sys,'argv',['install.py','--hooks']):runpy.run_path(str(ROOT/'install.py'),run_name='__main__')
+     with patch.object(sys,'argv',['install.py','--hooks']):runpy.run_path(str(ROOT/'scripts/install.py'),run_name='__main__')
     self.assertEqual(config.read_text().count('-- BEGIN Orbit portable'),1)
     self.assertTrue((home/'.local/share/applications/orbit.desktop').exists())
-    with patch.object(sys,'argv',['uninstall.py']):runpy.run_path(str(ROOT/'uninstall.py'),run_name='__main__')
+    with patch.object(sys,'argv',['uninstall.py']):runpy.run_path(str(ROOT/'scripts/uninstall.py'),run_name='__main__')
     self.assertEqual(config.read_text().strip(),'-- existing config')
     import json
     self.assertEqual(json.loads(claude.read_text())['model'],'keep')
     self.assertNotIn('emit.py',claude.read_text())
     self.assertFalse((home/'.local/share/applications/orbit.desktop').exists())
-   sys.path.remove(str(ROOT));sys.modules.pop('integration',None)
+   sys.path.remove(str(ROOT/'scripts'));sys.modules.pop('integration',None)
 if __name__=='__main__':unittest.main()
