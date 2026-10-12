@@ -1,0 +1,11 @@
+{
+  "name": "orbit",
+  "version": "0.2.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "./start.sh",
+    "test": "node --test test/*.test.cjs"
+  },
+  "description": "Animated coding-agent companion for Hyprland"
+}

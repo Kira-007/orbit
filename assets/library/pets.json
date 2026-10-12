@@ -1,0 +1,58 @@
+[
+  {
+    "id": "beatrice-legeling",
+    "name": "Beatrice",
+    "facing": "right",
+    "spriteSheets": {
+      "idle": {
+        "sheet": "assets/beatrice-legeling/idle.png",
+        "name": "Beatrice \u00b7 Idle",
+        "frames": 6,
+        "columns": 6,
+        "fps": 1
+      },
+      "walking": {
+        "sheet": "assets/beatrice-legeling/walking.png",
+        "name": "Beatrice \u00b7 Walking",
+        "frames": 8,
+        "columns": 8,
+        "fps": 8
+      },
+      "working": {
+        "sheet": "assets/beatrice-legeling/working.png",
+        "name": "Beatrice \u00b7 Working",
+        "frames": 6,
+        "columns": 6,
+        "fps": 8
+      },
+      "waiting": {
+        "sheet": "assets/beatrice-legeling/waiting.png",
+        "name": "Beatrice \u00b7 Waiting",
+        "frames": 6,
+        "columns": 6,
+        "fps": 6
+      },
+      "done": {
+        "sheet": "assets/beatrice-legeling/done.png",
+        "name": "Beatrice \u00b7 Done",
+        "frames": 5,
+        "columns": 5,
+        "fps": 7
+      },
+      "error": {
+        "sheet": "assets/beatrice-legeling/error.png",
+        "name": "Beatrice \u00b7 Error",
+        "frames": 8,
+        "columns": 8,
+        "fps": 7
+      },
+      "unknown": {
+        "sheet": "assets/beatrice-legeling/unknown.png",
+        "name": "Beatrice \u00b7 Unknown",
+        "frames": 6,
+        "columns": 6,
+        "fps": 5
+      }
+    }
+  }
+]

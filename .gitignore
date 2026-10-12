@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+node_modules/
+install-manifest.json
+*.log
+.env
+.DS_Store

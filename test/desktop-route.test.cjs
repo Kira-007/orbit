@@ -1,0 +1,3 @@
+const test=require('node:test'),assert=require('node:assert/strict');const {desktopMessageUrl}=require('../desktop-route.cjs');
+test('Desktop handoff targets its thread and preserves multiline prompt text',()=>{const id='01234567-89ab-cdef-0123-456789abcdef',prompt='hello & world\nsecond line? # plus +';const url=new URL(desktopMessageUrl(id,prompt));assert.equal(url.protocol,'codex:');assert.equal(url.host,'threads');assert.equal(url.pathname,'/'+id);assert.equal(url.searchParams.get('prompt'),prompt);});
+test('Desktop handoff rejects a non-thread destination',()=>assert.throws(()=>desktopMessageUrl('../settings','hello')));
