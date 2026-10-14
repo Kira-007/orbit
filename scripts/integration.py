@@ -13,6 +13,6 @@ def lua_string(value):
     import json
     return json.dumps(str(value),ensure_ascii=False)
 def block(autostart):
-    rule='hl.window_rule({ name = "orbit_portable", match = { class = "^(agent-pet|orbit-agent-pet)$", title = "^Orbit Agent Pet$" }, float = true, pin = true, no_follow_mouse = false, no_initial_focus = true, border_size = 0, no_blur = true, no_shadow = true, no_anim = true, opacity = 1.0 })'
+    rule='hl.window_rule({ name = "orbit_portable", match = { class = "^(agent-pet|orbit-agent-pet)$", title = "^Orbit Agent Pet$" }, float = true, pin = true, no_follow_mouse = true, no_initial_focus = true, border_size = 0, no_blur = true, no_shadow = true, no_anim = true, opacity = 1.0 })'
     startup='\nhl.on("hyprland.start", function() hl.exec_cmd('+lua_string(shlex.quote(str(ROOT/'start.sh')))+') end)' if autostart else ''
     return START+'\n'+rule+startup+'\n'+END+'\n'

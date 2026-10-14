@@ -27,6 +27,13 @@ function codexEvent(record,meta,fileTime){
   if(record.type==='response_item'&&['function_call','custom_tool_call'].includes(payload.type)){status='working';activity='Using '+String(payload.name||'tool').replace(/^.*__/,'').replace(/_/g,' ');}
   if(record.type==='event_msg'&&payload.type==='agent_message')activity=String(payload.message||'Working on task').replace(/\s+/g,' ').slice(0,120);
   if(record.type==='event_msg'&&payload.type==='task_complete'&&payload.last_agent_message)activity=String(payload.last_agent_message).replace(/\s+/g,' ').slice(0,120);
+  if(record.type==='event_msg'&&payload.type==='item_completed'){
+    const item=payload.item||{};
+    const text=(Array.isArray(item.content)?item.content:[]).filter(c=>typeof c.text==='string').map(c=>c.text).join(' ').replace(/<environment_context>[\s\S]*?<\/environment_context>/g,'').trim();
+    if(item.type==='UserMessage'&&text&&!text.startsWith('<')){title=text;status='working';}
+    else if(item.type==='AgentMessage'){status=item.phase==='final_answer'?'done':'working';activity=text||undefined;}
+    else if(['Reasoning','CommandExecution','McpToolCall','DynamicToolCall','FileChange','WebSearch','ImageGeneration'].includes(item.type)){status='working';activity=item.type==='Reasoning'?'Thinking':'Using '+item.type.replace(/([a-z])([A-Z])/g,'$1 $2').toLowerCase();}
+  }
   if(!status)return null;
   if(title)title=String(title).replace(/\s+/g,' ').trim().slice(0,160);
   const time=Date.parse(record.timestamp)||fileTime;

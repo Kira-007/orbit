@@ -12,3 +12,15 @@ test('passive hook writes only normalized metadata and returns neutral output',(
 
 test('task names survive progress and completion events',()=>{const s=new Store();s.update({provider:'claude',session:'task',status:'working',title:'Fix login',time:1});s.update({provider:'claude',session:'task',status:'working',activity:'Using Bash',time:2});assert.equal(s.snapshot(3).sessions[0].title,'Fix login');assert.equal(s.snapshot(3).sessions[0].activity,'Using Bash');s.update({provider:'claude',session:'task',status:'done',time:4});assert.equal(s.snapshot(5).sessions[0].title,'Fix login');});
 test('Codex user messages supply task labels and tool calls supply activity',()=>{const meta={id:'task',originator:'codex-tui'};const task=codexEvent({type:'response_item',payload:{type:'message',role:'user',content:[{type:'input_text',text:'Build a task panel'}]}},meta,1);assert.equal(task.title,'Build a task panel');const tool=codexEvent({type:'response_item',payload:{type:'function_call',name:'exec_command'}},meta,2);assert.equal(tool.activity,'Using exec command');});
+
+test('current Codex item events refresh progress and recognize final answers',()=>{
+ const meta={id:'new-format',originator:'codex-tui'},store=new Store();
+ const event=(item,time)=>codexEvent({type:'event_msg',timestamp:new Date(time).toISOString(),payload:{type:'item_completed',item}},meta,time);
+ store.update(event({type:'UserMessage',content:[{type:'text',text:'Fix the pet'}]},1000));
+ store.update(event({type:'Reasoning'},901000));
+ assert.equal(store.snapshot(902000).sessions[0].status,'working');
+ assert.equal(store.snapshot(902000).sessions[0].title,'Fix the pet');
+ store.update(event({type:'AgentMessage',phase:'final_answer',content:[{type:'text',text:'Fixed'}]},903000));
+ assert.equal(store.snapshot(904000).sessions[0].status,'done');
+ assert.equal(store.snapshot(904000).sessions[0].activity,'Fixed');
+});

@@ -43,7 +43,7 @@ Set `ORBIT_ELECTRON` to an alternative Electron executable. Set `ORBIT_CODEX_DES
 
 - Click the pet to open/close its toolbar; drag to move it.
 - Chat and notifications are separate views. Select a harness and thread before sending. Enter sends; Shift+Enter inserts a line break.
-- Scroll notification cards; dismiss them with their small close control.
+- Scroll notification cards; clicking a completed card dismisses it. Other cards retain their small close control. Hovering the pet does not take keyboard focus.
 - Right-click for Hide or Settings; the tray restores a hidden pet.
 - Settings → Customize supports body colors, expression, and sprite pets. Upload a sheet for each animation, set frame count and its facing, and adjust each animation's speed independently.
 - Walking follows your drag direction, while transparent empty space passes clicks through.
