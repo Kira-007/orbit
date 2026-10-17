@@ -15,7 +15,7 @@ def lua_string(value):
 def summon_binding(script=None):
     script=script or ROOT/'scripts/summon.py'
     command=lua_string('python3 '+shlex.quote(str(script)))
-    return 'hl.bind("SUPER + CTRL + ALT + P", function() local cursor = hl.get_cursor_pos(); if cursor then hl.exec_cmd('+command+' .. " " .. cursor.x .. " " .. cursor.y) end end, { description = "[Orbit] Run pet to cursor" })'
+    return 'hl.bind("SUPER + Y", function() local cursor = hl.get_cursor_pos(); if cursor then hl.exec_cmd('+command+' .. " " .. cursor.x .. " " .. cursor.y) end end, { description = "[Orbit] Run pet to cursor" })'
 
 def block(autostart):
     rule='hl.window_rule({ name = "orbit_portable", match = { class = "^(agent-pet|orbit-agent-pet)$", title = "^Orbit Agent Pet$" }, float = true, pin = true, no_follow_mouse = true, no_initial_focus = true, border_size = 0, no_blur = true, no_shadow = true, no_anim = true, opacity = 1.0 })'
