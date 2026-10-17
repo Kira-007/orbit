@@ -37,3 +37,10 @@ test('different animation facing directions survive saving without changing thei
  assert.equal(saved.spriteSheets.idle.fps,3);assert.equal(saved.spriteSheets.walking.fps,15);
  assert.equal(saved.spriteSheets.working.facing,undefined);
 });
+test('animation offsets are bounded and preserved separately per state',()=>{
+ const sheet={sheet:'file:///tmp/pet.png',frames:1,columns:1,fps:8};
+ const p=normalizeSettings({spriteSheets:{idle:{...sheet,offsetX:24,offsetY:-12},walking:{...sheet,offsetX:999,offsetY:-999}}});
+ assert.equal(p.spriteSheets.idle.offsetX,24);assert.equal(p.spriteSheets.idle.offsetY,-12);
+ assert.equal(p.spriteSheets.walking.offsetX,100);assert.equal(p.spriteSheets.walking.offsetY,-100);
+ assert.equal(normalizeSettings(p).spriteSheets.idle.offsetX,24);
+});

@@ -11,7 +11,7 @@ class SpritePlayer{
    const columns=source.columns,rows=Math.ceil(source.frames/columns),width=image.width/columns,height=image.height/rows;
    if(!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0){this.key='';return;}
    const ratio=Math.min(this.canvas.width/width,this.canvas.height/height),dw=width*ratio,dh=height*ratio,start=performance.now();
-   const draw=now=>{if(generation!==this.generation)return;const frame=animate?Math.floor((now-start)*source.fps/1000)%source.frames:0;this.context.clearRect(0,0,this.canvas.width,this.canvas.height);this.context.imageSmoothingEnabled=false;this.context.drawImage(image,(frame%columns)*width,Math.floor(frame/columns)*height,width,height,(this.canvas.width-dw)/2,(this.canvas.height-dh)/2,dw,dh);if(animate)this.tick=requestAnimationFrame(draw);};draw(start);
+   const draw=now=>{if(generation!==this.generation)return;const frame=animate?Math.floor((now-start)*source.fps/1000)%source.frames:0;this.context.clearRect(0,0,this.canvas.width,this.canvas.height);this.context.imageSmoothingEnabled=false;this.context.drawImage(image,(frame%columns)*width,Math.floor(frame/columns)*height,width,height,(this.canvas.width-dw)/2+(Number(source.offsetX)||0)*ratio,(this.canvas.height-dh)/2+(Number(source.offsetY)||0)*ratio,dw,dh);if(animate)this.tick=requestAnimationFrame(draw);};draw(start);
   };
   image.src=source.sheet;
  }

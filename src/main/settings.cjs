@@ -1,7 +1,7 @@
 const animationStates=['idle','walking','working','waiting','done','error','unknown'];
 const defaults={animations:true,controls:false,hoverDelay:750,completionMinutes:10,harness:'codex-cli',petScale:1,movementSpeed:700,petName:'Orbit',bodyColor:'#90bbb7',accentColor:'#8ce8cf',face:'friendly',spriteSheets:{},spritePets:[],activeSpritePet:'',petMode:'custom'};
 function normalizeSheets(value){
- const sheets={};for(const state of animationStates){const entry=value?.[state];if(entry&&typeof entry.sheet==='string'&&entry.sheet.startsWith('file:'))sheets[state]={sheet:entry.sheet,name:String(entry.name||'Sprite sheet').slice(0,180),frames:Math.max(1,Math.min(256,Math.round(Number(entry.frames)||1))),columns:Math.max(1,Math.min(256,Math.round(Number(entry.columns)||Number(entry.frames)||1))),fps:Math.max(1,Math.min(60,Number(entry.fps)||10)),...(['left','right'].includes(entry.facing)?{facing:entry.facing}:{})};}return sheets;
+ const sheets={};for(const state of animationStates){const entry=value?.[state];if(entry&&typeof entry.sheet==='string'&&entry.sheet.startsWith('file:'))sheets[state]={sheet:entry.sheet,name:String(entry.name||'Sprite sheet').slice(0,180),frames:Math.max(1,Math.min(256,Math.round(Number(entry.frames)||1))),columns:Math.max(1,Math.min(256,Math.round(Number(entry.columns)||Number(entry.frames)||1))),fps:Math.max(1,Math.min(60,Number(entry.fps)||10)),offsetX:Math.max(-100,Math.min(100,Number(entry.offsetX)||0)),offsetY:Math.max(-100,Math.min(100,Number(entry.offsetY)||0)),...(['left','right'].includes(entry.facing)?{facing:entry.facing}:{})};}return sheets;
 }
 function normalizeSettings(value={}){
  const color=(v,f)=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)?v:f;
