@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' file: data:; img-src 'self' data:"><title>Orbit Agent Pet</title><link rel="stylesheet" href="style.css"></head><body>
+<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' file: data:"><title>Orbit Agent Pet</title><link rel="stylesheet" href="style.css"></head><body>
 <main id="shell">
 <div id="pet" role="button" tabindex="0" aria-label="Drag Orbit, or press Enter to open agent activity">
 <canvas id="pet-sprite" width="300" height="258" hidden></canvas><svg viewBox="0 0 150 145" aria-hidden="true"><defs><linearGradient id="metal" x2=".8" y2="1"><stop stop-color="var(--pet-body-light,#e7faf5)"/><stop offset="1" stop-color="var(--pet-body,#90bbb7)"/></linearGradient><linearGradient id="glass" x2="1" y2="1"><stop stop-color="#193941"/><stop offset="1" stop-color="#091e27"/></linearGradient></defs>
@@ -29,10 +29,10 @@
 <label class="setting-row"><span>Animations</span><input id="setting-animations" type="checkbox"></label>
 <label class="setting-row"><span>Always show controls</span><input id="setting-controls" type="checkbox"></label>
 <label class="setting-row"><span>Hover delay</span><select id="setting-hover"><option value="400">Short</option><option value="750">Medium</option><option value="1200">Long</option></select></label>
-<label class="setting-row"><span>Keep unseen completions</span><select id="setting-completions"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
+<label class="setting-row"><span>Keep completed tasks</span><select id="setting-completions"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>
 <label class="setting-row"><span>Default harness</span><select id="setting-harness"><option value="codex-cli">Codex CLI</option><option value="codex-desktop">Codex Desktop</option><option value="claude">Claude Code</option><option value="antigravity">AGY CLI</option></select></label>
 <div class="settings-actions"><button id="setting-position" type="button">Reset position</button><button id="settings-done" type="button">Done</button></div>
 </section>
 <div id="usage-panel" hidden aria-label="Usage remaining"></div><div id="cards"></div><div id="toast" role="status"></div>
 </section>
-<div id="overlay-layer"><div id="pet-menu" hidden><button id="pet-hide" type="button">Hide</button><button id="pet-settings" type="button">Settings</button></div><div id="settings-menu" hidden></div></div></main><script src="sprite-player.js"></script><script src="drag-direction.js"></script><script src="pet-state.js"></script><script src="renderer.js"></script></body></html>
+<div id="overlay-layer"><div id="pet-menu" hidden><button id="pet-hide" type="button">Hide</button><button id="pet-settings" type="button">Settings</button></div><div id="settings-menu" hidden></div></div></main><script src="sprite-player.js"></script><script src="drag-direction.js"></script><script src="pet-state.js"></script><script src="notifications.js"></script><script src="renderer.js"></script></body></html>

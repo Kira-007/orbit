@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path'),os=require('node:os');
 const {execFile}=require('node:child_process');
 const {normalizeUsage,normalizeAgyUsage}=require('./usage.cjs');
 const {codexEvent}=require('./store.cjs');
-const ROOT=path.join(os.homedir(),'.codex','sessions');
+const ROOT=path.join(process.env.CODEX_HOME||path.join(os.homedir(),'.codex'),'sessions');
 function filesUnder(dir,out=[]){try{for(const e of fs.readdirSync(dir,{withFileTypes:true})){const p=path.join(dir,e.name);if(e.isDirectory())filesUnder(p,out);else if(e.name.endsWith('.jsonl'))out.push(p);}}catch{}return out;}
 class Activity {
  constructor(store,stateDir,root=ROOT){this.stateDir=stateDir;this.root=root;this.store=store;this.dir=path.join(stateDir,'events');this.tails=new Map();this.eventTimes=new Map();this.lastScan=0;this.files=[];fs.mkdirSync(this.dir,{recursive:true,mode:0o700});}

@@ -2,20 +2,18 @@ let usageSignature='';
 const names={'claude':'Claude Code','codex-cli':'Codex CLI','codex-desktop':'Codex Desktop','antigravity':'AGY CLI'};
 let data={sessions:[],online:{}},open=false,chatOpen=false,usageOpen=false,settingsOpen=false,stackExpanded=false,frontTaskKey=null,lastStackScroll=0,stackAnimating=false;
 const defaults={animations:true,controls:false,hoverDelay:750,completionMinutes:10,harness:'codex-cli'};let settings={...defaults};try{settings={...defaults,...JSON.parse(localStorage.getItem('orbit-settings')||'{}')};}catch{}
-let viewedThisOpen=new Set(),notifications={},dismissed={};
-try{notifications=JSON.parse(localStorage.getItem('orbit-notifications')||'{}');dismissed=JSON.parse(localStorage.getItem('orbit-dismissed')||'{}');}catch{}
-const taskKey=s=>(s.provider.startsWith('codex-')?'codex':s.provider)+':'+s.session;
-const taskIdentity=s=>String(s.title||'').trim();
-function saveNotifications(){try{localStorage.setItem('orbit-notifications',JSON.stringify(notifications));localStorage.setItem('orbit-dismissed',JSON.stringify(dismissed));}catch{}}
-function visibleTasks(){
- for(const s of data.sessions){const key=taskKey(s),old=notifications[key];if(old&&old.time>s.time)continue;
- if(dismissed[key]===taskIdentity(s))continue;
- if(['working','waiting'].includes(s.status)||(s.status==='done'&&(old||s.time>=Date.now()-settings.completionMinutes*60000)))notifications[key]=s;
- }
- saveNotifications();return Object.values(notifications).sort((a,b)=>b.time-a.time);
+const {NotificationFeed,taskKey}=OrbitNotifications;
+let storedNotifications={},storedDismissed={};
+try{storedNotifications=JSON.parse(localStorage.getItem('orbit-notifications')||'{}');storedDismissed=JSON.parse(localStorage.getItem('orbit-dismissed')||'{}');}catch{}
+const notificationFeed=new NotificationFeed({notifications:storedNotifications,dismissed:storedDismissed});
+let notificationSignature='',cardsSignature='';
+function saveNotifications(){
+ const signature=JSON.stringify([notificationFeed.notifications,notificationFeed.dismissed]);
+ if(signature===notificationSignature)return;notificationSignature=signature;
+ try{localStorage.setItem('orbit-notifications',JSON.stringify(notificationFeed.notifications));localStorage.setItem('orbit-dismissed',JSON.stringify(notificationFeed.dismissed));}catch{}
 }
-function acknowledge(){}
-function dismissTask(session){const key=taskKey(session);dismissed[key]=taskIdentity(session);delete notifications[key];saveNotifications();paint();requestAnimationFrame(reportRegions);}
+function visibleTasks(){const tasks=notificationFeed.update(data.sessions,{completionMinutes:settings.completionMinutes});saveNotifications();return tasks;}
+function dismissTask(session){notificationFeed.dismiss(session);saveNotifications();paint();requestAnimationFrame(reportRegions);}
 const $=id=>document.getElementById(id);
 const petSprite=new SpritePlayer($('pet-sprite'));let petAnimationState='idle',petWalking=false,petDirection=1;
 function currentSpriteConfig(){return settings.petMode==='sprite'?((petWalking?settings.spriteSheets?.walking:null)||settings.spriteSheets?.[petAnimationState]||settings.spriteSheets?.idle):null;}
@@ -40,21 +38,64 @@ function animateVisible(element,visible){
 function expand(value){
  const view=settingsOpen?'settings':chatOpen?'chat':usageOpen?'usage':'notifications';if(!value||view!==lastPanelView)closeMenus();lastPanelView=view;
  open=value;window.orbit.expand(open);$('pet').setAttribute('aria-expanded',String(open));
- if(!open){viewedThisOpen.clear();chatOpen=false;usageOpen=false;settingsOpen=false;panelClosing=true;animateVisible($('panel'),false).then(()=>{if(open)return;panelClosing=false;document.body.classList.remove('open','chat-open');requestAnimationFrame(reportRegions);});return;}
- panelClosing=false;if(!chatOpen&&!usageOpen&&!settingsOpen)acknowledge();paint();document.body.classList.add('open');$('composer').hidden=!chatOpen;$('cards').hidden=chatOpen||usageOpen||settingsOpen;$('settings-panel').hidden=!settingsOpen;$('usage-panel').hidden=!usageOpen;$('usage-toggle').setAttribute('aria-expanded',String(usageOpen));document.body.classList.toggle('chat-open',chatOpen);document.body.classList.toggle('stacked',!stackExpanded);animateVisible($('panel'),true);requestAnimationFrame(reportRegions);
+ if(!open){chatOpen=false;usageOpen=false;settingsOpen=false;panelClosing=true;animateVisible($('panel'),false).then(()=>{if(open)return;panelClosing=false;document.body.classList.remove('open','chat-open');requestAnimationFrame(reportRegions);});return;}
+ panelClosing=false;paint();document.body.classList.add('open');$('composer').hidden=!chatOpen;$('cards').hidden=chatOpen||usageOpen||settingsOpen;$('settings-panel').hidden=!settingsOpen;$('usage-panel').hidden=!usageOpen;$('usage-toggle').setAttribute('aria-expanded',String(usageOpen));document.body.classList.toggle('chat-open',chatOpen);document.body.classList.toggle('stacked',!stackExpanded);animateVisible($('panel'),true);requestAnimationFrame(reportRegions);
 }
 $('notifications').onclick=()=>{const close=open&&!chatOpen&&!usageOpen&&!settingsOpen;chatOpen=false;usageOpen=false;settingsOpen=false;stackExpanded=false;expand(!close);};
 $('chat-toggle').onclick=()=>{const close=open&&chatOpen;settingsOpen=false;usageOpen=false;chatOpen=!close;stackExpanded=true;expand(!close);if(chatOpen){loadProjects();$('prompt').focus();}};
 $('usage-toggle').onclick=()=>{const close=open&&usageOpen;settingsOpen=false;chatOpen=false;usageOpen=!close;stackExpanded=true;expand(!close);if(!close)window.orbit.refreshUsage();};
-$('harness').value=localStorage.getItem('orbit-harness')||settings.harness;
+$('harness').value=names[localStorage.getItem('orbit-harness')]?localStorage.getItem('orbit-harness'):(names[settings.harness]?settings.harness:'codex-cli');
 function chooseHarness(){ $('harness-toggle').textContent=names[$('harness').value]+' ▾';localStorage.setItem('orbit-harness',$('harness').value);$('submit-task').title=$('harness').value==='codex-desktop'?'Send to Desktop conversation':'Send message';}
 chooseHarness();
 $('thread-toggle').onclick=()=>{closeMenus('projects');$('harness-toggle').setAttribute('aria-expanded','false');animateVisible($('projects'),!wantedVisible($('projects')));$('thread-toggle').setAttribute('aria-expanded',String(wantedVisible($('projects'))));requestAnimationFrame(reportRegions);};
 $('harness-toggle').onclick=()=>{closeMenus('harness-menu');$('thread-toggle').setAttribute('aria-expanded','false');const menu=$('harness-menu');animateVisible(menu,!wantedVisible(menu));$('harness-toggle').setAttribute('aria-expanded',String(wantedVisible(menu)));requestAnimationFrame(reportRegions);};
 for(const button of document.querySelectorAll('[data-harness]'))button.onclick=()=>{$('harness').value=button.dataset.harness;chooseHarness();if(chatOpen)loadProjects();animateVisible($('harness-menu'),false);$('harness-toggle').setAttribute('aria-expanded','false');requestAnimationFrame(reportRegions);};
-let selectedThread='',projectRequest=0;const threadSelections={};
-async function loadProjects(){const request=++projectRequest,provider=$('harness').value;selectedThread=threadSelections[provider]||'';animateVisible($('projects'),false);$('thread-toggle').textContent='Loading…';$('projects').textContent='Loading conversations…';$('submit-task').disabled=true;const projects=await window.orbit.projects(provider);if(request!==projectRequest||provider!==$('harness').value)return;$('projects').replaceChildren();if(!projects.some(p=>p.id===selectedThread))selectedThread=projects[0]?.id||'';for(const project of projects){const button=document.createElement('button');button.type='button';button.className='project'+(project.id===selectedThread?' selected':'');button.setAttribute('aria-pressed',String(project.id===selectedThread));button.textContent=project.name;button.title=project.path;button.onclick=()=>{selectedThread=project.id;$('thread-toggle').textContent=project.name+' ▾';$('thread-toggle').title=project.name;animateVisible($('projects'),false);$('thread-toggle').setAttribute('aria-expanded','false');requestAnimationFrame(reportRegions);threadSelections[provider]=selectedThread;for(const item of $('projects').children){const selected=item===button;item.classList.toggle('selected',selected);item.setAttribute('aria-pressed',String(selected));}};$('projects').append(button);}threadSelections[provider]=selectedThread;const selected=projects.find(p=>p.id===selectedThread);$('thread-toggle').textContent=(selected?.name||'Choose thread')+' ▾';$('thread-toggle').title=selected?.name||'Choose thread';$('thread-toggle').disabled=!projects.length;$('submit-task').disabled=!projects.length;if(!projects.length)$('projects').textContent='No conversations detected for '+names[provider];requestAnimationFrame(reportRegions);}
-$('composer').onsubmit=async e=>{e.preventDefault();const prompt=$('prompt').value.trim();if(!prompt)return;const button=$('submit-task');button.disabled=true;try{const result=await window.orbit.startTask($('harness').value,prompt,selectedThread);if(result.ok){$('prompt').value='';toast(result.message||'Task started');}else toast(result.message);}catch{toast('Could not start task');}finally{button.disabled=false;}};
+let selectedThread='',projectRequest=0,projectsLoading=false,sending=false;
+const threadSelections={};
+function updateComposerState(){ $('submit-task').disabled=sending||projectsLoading||!selectedThread; }
+async function loadProjects(preferredThread){
+ const request=++projectRequest,provider=$('harness').value;
+ const desired=preferredThread||threadSelections[provider]||'';
+ selectedThread='';projectsLoading=true;updateComposerState();
+ animateVisible($('projects'),false);$('thread-toggle').textContent='Loading…';$('thread-toggle').disabled=true;$('projects').textContent='Loading conversations…';
+ try{
+  const result=await window.orbit.projects(provider);
+  if(request!==projectRequest||provider!==$('harness').value)return false;
+  const projects=Array.isArray(result)?result.filter(p=>p&&typeof p.id==='string'&&typeof p.name==='string'):[];
+  const selected=projects.find(p=>p.id===desired)||(!preferredThread?projects[0]:null);
+  selectedThread=selected?.id||'';$('projects').replaceChildren();
+  for(const project of projects){
+   const button=document.createElement('button');button.type='button';button.className='project'+(project.id===selectedThread?' selected':'');button.setAttribute('aria-pressed',String(project.id===selectedThread));button.textContent=project.name;button.title=project.path||'';
+   button.onclick=()=>{selectedThread=project.id;threadSelections[provider]=selectedThread;$('thread-toggle').textContent=project.name+' ▾';$('thread-toggle').title=project.name;animateVisible($('projects'),false);$('thread-toggle').setAttribute('aria-expanded','false');for(const item of $('projects').children){const active=item===button;item.classList.toggle('selected',active);item.setAttribute('aria-pressed',String(active));}updateComposerState();requestAnimationFrame(reportRegions);};
+   $('projects').append(button);
+  }
+  if(selected)threadSelections[provider]=selected.id;
+  $('thread-toggle').textContent=selected?selected.name+' ▾':preferredThread?'Session unavailable':'Choose thread';$('thread-toggle').title=selected?.name||'Choose thread';$('thread-toggle').disabled=!projects.length;
+  if(!projects.length)$('projects').textContent='No conversations detected for '+names[provider];
+  if(preferredThread&&!selected)toast('This session is no longer available. Choose another conversation.');
+  return !!selected;
+ }catch{
+  if(request!==projectRequest||provider!==$('harness').value)return false;
+  selectedThread='';$('thread-toggle').textContent='Could not load threads';$('projects').textContent='Could not load conversations. Reopen chat to retry.';toast('Could not load conversations');return false;
+ }finally{
+  if(request===projectRequest&&provider===$('harness').value){projectsLoading=false;updateComposerState();requestAnimationFrame(reportRegions);}
+ }
+}
+async function openTaskChat(session){
+ if(!names[session.provider]||typeof session.session!=='string')return;
+ toolbarPinned=true;document.body.classList.add('toolbar-expanded');
+ settingsOpen=false;usageOpen=false;chatOpen=true;stackExpanded=true;
+ $('harness').value=session.provider;chooseHarness();expand(true);
+ const selected=await loadProjects(session.session);
+ if(!chatOpen||$('harness').value!==session.provider||selectedThread!==session.session)return;
+ if(selected){if(['done','error'].includes(session.status))dismissTask(session);$('prompt').focus();}
+}
+$('composer').onsubmit=async e=>{
+ e.preventDefault();const prompt=$('prompt').value.trim();if(!prompt||sending||projectsLoading||!selectedThread)return;
+ const provider=$('harness').value,thread=selectedThread,draft=$('prompt').value;sending=true;updateComposerState();
+ try{const result=await window.orbit.startTask(provider,prompt,thread);if(result.ok){if(provider===$('harness').value&&thread===selectedThread&&$('prompt').value===draft)$('prompt').value='';toast(result.message||'Message sent');}else toast(result.message||'Could not send message');}
+ catch{toast('Could not send message');}finally{sending=false;updateComposerState();}
+};
 function toast(message){$('toast').textContent=message;$('toast').style.display='block';setTimeout(()=>$('toast').style.display='none',3500);}
 function age(time){let sec=Math.max(0,Math.floor((Date.now()-time)/1000));return sec<60?'just now':sec<3600?`${Math.floor(sec/60)}m ago`:`${Math.floor(sec/3600)}h ago`;}
 function paint(){
@@ -63,12 +104,12 @@ function paint(){
  document.body.classList.remove('working','waiting','error','done','idle','unknown');document.body.classList.add(state);petAnimationState=state;updatePetSprite();
  paintUsage();
  const scrollTop=$('cards').scrollTop;
- let sessions=visibleTasks();const frontIndex=sessions.findIndex(s=>taskKey(s)===frontTaskKey);if(frontIndex>0)sessions=[...sessions.slice(frontIndex),...sessions.slice(0,frontIndex)];$('badge').textContent=sessions.length;$('badge').hidden=!sessions.length;document.body.classList.toggle('has-tasks',sessions.length>0);$('cards').replaceChildren();
- if(!sessions.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='No tasks yet';const small=document.createElement('small');small.textContent='Run an agent task to see it here. Hooks connect Claude and Antigravity.';empty.append(small);$('cards').append(empty);}
- for(const session of sessions){const card=document.createElement('div');card.tabIndex=0;card.setAttribute('role','button');card.className='card '+(session.provider==='claude'?'claude':session.provider==='antigravity'?'agy':session.provider==='codex-cli'?'codex-cli':'codex-desktop');const top=document.createElement('div');top.className='card-top';const brand=document.createElement('span');brand.className='brand';brand.textContent=names[session.provider];const status=document.createElement('span');status.className='state '+session.status;status.textContent=session.status==='unknown'?'status stale':session.status;top.append(brand,status);const title=document.createElement('div');title.className='card-title';title.textContent=session.title;const meta=document.createElement('div');meta.className='meta';meta.textContent=`${age(session.time)} · ${session.workspace||'Local session'}`;card.title=session.workspace;const activity=document.createElement('div');activity.className='task-activity';activity.textContent=session.activity||'Working on task';const dismiss=document.createElement('button');dismiss.className='dismiss-task';dismiss.type='button';dismiss.textContent='×';dismiss.setAttribute('aria-label','Dismiss '+session.title);dismiss.onclick=e=>{e.stopPropagation();dismissTask(session);};card.append(top,title,activity,meta,dismiss);card.onkeydown=e=>{if(e.target===card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();card.click();}};card.onclick=async()=>{if(session.status==='done'){dismissTask(session);return;}if(!stackExpanded){stackExpanded=true;expand(true);return;}if(!await window.orbit.focus(session.provider))toast('Open the agent’s app or terminal to jump to it.');};$('cards').append(card);}
+ let sessions=visibleTasks();const frontIndex=sessions.findIndex(s=>taskKey(s)===frontTaskKey);if(frontIndex>0)sessions=[...sessions.slice(frontIndex),...sessions.slice(0,frontIndex)];$('badge').textContent=sessions.length;$('badge').hidden=!sessions.length;document.body.classList.toggle('has-tasks',sessions.length>0);const signature=JSON.stringify([sessions.map(s=>[s.provider,s.session,s.status,s.title,s.activity,s.workspace,s.time,Math.floor((Date.now()-s.time)/60000)]),stackExpanded]);if(signature===cardsSignature)return;cardsSignature=signature;$('cards').replaceChildren();
+ if(!sessions.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='No tasks yet';const small=document.createElement('small');small.textContent='Running tasks and recent completions appear here.';empty.append(small);$('cards').append(empty);}
+ for(const session of sessions){const card=document.createElement('div');card.tabIndex=0;card.setAttribute('role','button');card.className='card '+(session.provider==='claude'?'claude':session.provider==='antigravity'?'agy':session.provider==='codex-cli'?'codex-cli':'codex-desktop');const top=document.createElement('div');top.className='card-top';const brand=document.createElement('span');brand.className='brand';brand.textContent=names[session.provider];const status=document.createElement('span');status.className='state '+session.status;status.textContent=session.status==='unknown'?'status stale':session.status;top.append(brand,status);const title=document.createElement('div');title.className='card-title';title.textContent=session.title;const meta=document.createElement('div');meta.className='meta';meta.textContent=`${age(session.time)} · ${session.workspace||'Local session'}`;card.title=session.workspace;const activity=document.createElement('div');activity.className='task-activity';activity.textContent=session.activity||'Working on task';const dismiss=document.createElement('button');dismiss.className='dismiss-task';dismiss.type='button';dismiss.textContent='×';dismiss.setAttribute('aria-label','Dismiss '+session.title);dismiss.onclick=e=>{e.stopPropagation();dismissTask(session);};card.append(top,title,activity,meta,dismiss);card.onkeydown=e=>{if(e.target===card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();card.click();}};card.onclick=()=>openTaskChat(session);$('cards').append(card);}
  $('cards').scrollTop=scrollTop;
 }
-window.orbit.onState(state=>{data=state;if(open&&!chatOpen&&!usageOpen&&!settingsOpen)acknowledge();paint();requestAnimationFrame(reportRegions);});window.orbit.ready();paint();
+window.orbit.onState(state=>{data=state;paint();requestAnimationFrame(reportRegions);});window.orbit.ready();paint();
 let pointer=null,raf=null;
 $('pet').addEventListener('pointerdown',e=>{if(e.button!==0)return;const rect=$('pet').getBoundingClientRect();pointer={id:e.pointerId,x:e.screenX,y:e.screenY,travelX:0,travelY:0,direction:new DragDirection(0,petDirection),moved:false};$('pet').setPointerCapture(e.pointerId);document.body.classList.add('dragging');window.orbit.drag('start',e.screenX,e.screenY,{x:e.clientX-rect.left,y:e.clientY-rect.top});});
 $('pet').addEventListener('pointermove',e=>{

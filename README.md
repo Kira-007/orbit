@@ -43,7 +43,8 @@ Set `ORBIT_ELECTRON` to an alternative Electron executable. Set `ORBIT_CODEX_DES
 
 - Click the pet to open/close its toolbar; drag to move it.
 - Chat and notifications are separate views. Select a harness and thread before sending. Enter sends; Shift+Enter inserts a line break.
-- Scroll notification cards; clicking a completed card dismisses it. Other cards retain their small close control. Hovering the pet does not take keyboard focus.
+- Click a task card to open Orbit’s composer with its harness and exact session selected. Completed/error cards are dismissed after that session loads. The × button dismisses any card. Notification clicks do not focus another application.
+- Completions and errors expire after 10 minutes by default (Settings → Recent tasks). Running/waiting cards disappear after 15 minutes without updates; idle/stale cards are cleared. Dismissal follows that task run, so a later run with the same title can notify again. Hovering the pet does not take keyboard focus.
 - Right-click for Hide or Settings; the tray restores a hidden pet.
 - Settings → Customize supports body colors, expression, and sprite pets. Upload a sheet for each animation, set frame count and its facing, and adjust each animation's speed independently.
 - Walking follows your drag direction, while transparent empty space passes clicks through.
@@ -62,6 +63,8 @@ Quit Orbit from its tray, then run `python3 uninstall.py`. It removes only the p
 
 ```sh
 node --test tests/*.test.cjs
+python3 tests/threads_test.py
+python3 tests/install_test.py
 ```
 
 This is an experimental Hyprland application, tested on Arch Linux. Other Linux distributions and multi-monitor layouts still need broader testing. Windows, macOS, legacy Hyprland and other compositors are not supported.

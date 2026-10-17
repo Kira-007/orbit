@@ -24,3 +24,20 @@ test('current Codex item events refresh progress and recognize final answers',()
  assert.equal(store.snapshot(904000).sessions[0].status,'done');
  assert.equal(store.snapshot(904000).sessions[0].activity,'Fixed');
 });
+
+test('task start markers survive progress and distinguish repeated same-title turns',()=>{
+ const store=new Store(),meta={id:'repeat',originator:'codex-tui'};
+ const event=(type,time)=>codexEvent({type:'event_msg',timestamp:new Date(time).toISOString(),payload:{type}},meta,time);
+ store.update(event('task_started',1000));store.update(event('agent_message',2000));
+ assert.equal(store.snapshot(3000).sessions[0].taskStartedAt,1000);
+ store.update(event('task_complete',4000));store.update(event('task_started',5000));
+ assert.equal(store.snapshot(6000).sessions[0].taskStartedAt,5000);
+ const tailOnly=new Store();tailOnly.update(event('agent_message',7000));
+ assert.equal(tailOnly.snapshot(8000).sessions[0].taskStartedAt,undefined,'partial log tails must not fabricate a different run on restart');
+});
+test('internal worker sessions do not create resumable task notifications',()=>{
+ const record={type:'event_msg',payload:{type:'task_started'}};
+ assert.equal(codexEvent(record,{id:'worker',source:{subagent:{}}},1),null);
+ assert.equal(codexEvent(record,{id:'worker',agent_path:'/root/child'},1),null);
+ assert.equal(codexEvent(record,{id:'parent',agent_path:'/root'},1).session,'parent');
+});

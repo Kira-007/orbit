@@ -119,9 +119,10 @@ ipcMain.handle('focus-agent',(_,provider)=>new Promise(resolve=>{
  if(!PROVIDERS.includes(provider))return resolve(false);
  execFile('hyprctl',['clients','-j'],{timeout:2000},(err,out)=>{if(err)return resolve(false);let clients;try{clients=JSON.parse(out);}catch{return resolve(false);}const target=clients.find(c=>provider==='codex-desktop'?/^(Chatgpt|codex-desktop)$/i.test(c.class)&&!c.floating:provider==='antigravity'?/antigravity/i.test(c.class):/kitty|alacritty|foot|wezterm/i.test(c.class)&&new RegExp(provider==='claude'?'claude':'codex','i').test(c.title));if(!target)return resolve(false);const address=JSON.stringify(target.address);execFile('hyprctl',['eval',`for _,w in ipairs(hl.get_windows()) do if w.address == ${address} then hl.dispatch(hl.dsp.focus({window=w})) end end`],{timeout:2000},err=>resolve(!err));});
 }));
-function openThreads(provider){
+async function openThreads(provider){
  if(!PROVIDERS.includes(provider))return [];
- let threads=[];try{threads=JSON.parse(execFileSync('python3',[path.join(__dirname,'../../scripts/threads.py'),provider],{timeout:2000,encoding:'utf8'}));}catch{}
+ let threads=await new Promise(resolve=>execFile('python3',[path.join(__dirname,'../../scripts/threads.py'),provider],{timeout:5000,maxBuffer:1024*1024},(error,out)=>{try{const result=JSON.parse(out);resolve(!error&&Array.isArray(result)?result:[]);}catch{resolve([]);}}));
+ threads=threads.filter(t=>t&&typeof t.id==='string'&&typeof t.name==='string');
  for(const session of store.snapshot().sessions)if(session.provider===provider&&!threads.some(t=>t.id===session.session))threads.push({id:session.session,name:session.title,path:session.workspace});
  return threads;
 }
@@ -133,7 +134,7 @@ function threadIsInTerminal(thread){
 }
 ipcMain.handle('start-task',async(_,{provider,prompt,thread}={})=>{
  if(!PROVIDERS.includes(provider)||typeof prompt!=='string'||!prompt.trim()||prompt.length>12000)return{ok:false,message:'Enter a message and choose a harness'};
- const selected=openThreads(provider).find(t=>t.id===thread);if(!selected)return{ok:false,message:'Choose a conversation before sending'};
+ const selected=(await openThreads(provider)).find(t=>t.id===thread);if(!selected)return{ok:false,message:'Choose a conversation before sending'};
  if(provider==='codex-desktop'){
   const desktop=process.env.ORBIT_CODEX_DESKTOP||['codex-desktop','chatgpt'].flatMap(name=>(process.env.PATH||'').split(path.delimiter).map(dir=>path.join(dir,name))).find(file=>{try{fs.accessSync(file,fs.constants.X_OK);return true;}catch{return false;}});
   if(!desktop)return{ok:false,message:'Codex Desktop launcher is unavailable'};
@@ -155,7 +156,7 @@ ipcMain.handle('start-task',async(_,{provider,prompt,thread}={})=>{
   const terminal=process.env.PATH.split(path.delimiter).map(dir=>path.join(dir,'kitty')).find(file=>{try{fs.accessSync(file,fs.constants.X_OK);return true;}catch{return false;}});
   if(!terminal)return{ok:false,message:'Install kitty to reopen this conversation'};
   return new Promise(resolve=>{const child=spawn(terminal,['--directory',cwd,'--title',selected.name,executable,'resume',selected.id,prompt],{cwd,detached:true,stdio:'ignore'});child.once('error',()=>resolve({ok:false,message:'Could not reopen '+selected.name}));child.once('spawn',()=>{child.unref();resolve({ok:true,message:'Opened '+selected.name+' in a terminal'});});});
- }else args=provider==='claude'?['--resume',selected.id,'--print',prompt]:['--conversation',selected.id,'--print',prompt];
+ }else args=provider==='claude'?['--resume',selected.id,'--print',prompt]:['--conversation',selected.id,...(selected.project?['--project',String(selected.project)]:[]),'--print',prompt];
  return new Promise(resolve=>{
   const child=spawn(executable,args,{cwd,stdio:['ignore','pipe','pipe']});let output='',errorText='';
   child.stdout.on('data',chunk=>{output=(output+chunk.toString()).slice(-16000);});child.stderr.on('data',chunk=>{errorText=(errorText+chunk.toString()).slice(-1000);});
