@@ -15,8 +15,8 @@ function saveNotifications(){
 function visibleTasks(){const tasks=notificationFeed.update(data.sessions,{completionMinutes:settings.completionMinutes});saveNotifications();return tasks;}
 function dismissTask(session){notificationFeed.dismiss(session);saveNotifications();paint();requestAnimationFrame(reportRegions);}
 const $=id=>document.getElementById(id);
-const petSprite=new SpritePlayer($('pet-sprite'));let spriteBounds=null;petSprite.onBounds=bounds=>{spriteBounds=bounds;requestAnimationFrame(reportRegions);};let petAnimationState='idle',petWalking=false,petDirection=1;
-function currentSpriteConfig(){const config=settings.petMode==='sprite'?((petWalking?settings.spriteSheets?.walking:null)||settings.spriteSheets?.[petAnimationState]||settings.spriteSheets?.idle):null;const pet=settings.spritePets?.find(p=>p.id===settings.activeSpritePet);return config?{...config,offsetX:pet?.offsetX||0,offsetY:pet?.offsetY||0}:null;}
+const petSprite=new SpritePlayer($('pet-sprite'));let spriteBounds=null;petSprite.onBounds=bounds=>{spriteBounds=bounds;requestAnimationFrame(reportRegions);};let petAnimationState='idle',petWalking=false,petDragging=false,petDirection=1;
+function currentSpriteConfig(){const config=settings.petMode==='sprite'?((petWalking?((petDragging?settings.spriteSheets?.dragging:null)||settings.spriteSheets?.walking):null)||settings.spriteSheets?.[petAnimationState]||settings.spriteSheets?.idle):null;const pet=settings.spritePets?.find(p=>p.id===settings.activeSpritePet);return config?{...config,offsetX:pet?.offsetX||0,offsetY:pet?.offsetY||0}:null;}
 function applySpriteDirection(config=currentSpriteConfig()){const pet=settings.spritePets?.find(p=>p.id===settings.activeSpritePet),original=(config?.facing||pet?.facing)==='left'?-1:1;const transform='scaleX('+(petDirection*original)+')';if($('pet-sprite').style.transform!==transform)$('pet-sprite').style.transform=transform;}
 function updatePetSprite(){const config=currentSpriteConfig();applySpriteDirection(config);$('pet').classList.toggle('custom-sprite',!!config);$('pet-sprite').hidden=!config;petSprite.set(config,settings.animations&&!matchMedia('(prefers-reduced-motion: reduce)').matches);}
 
@@ -118,7 +118,7 @@ $('pet').addEventListener('pointermove',e=>{
  if(Math.hypot(e.screenX-pointer.x,e.screenY-pointer.y)>4)pointer.moved=true;
  if(!raf)raf=requestAnimationFrame(()=>{raf=null;if(pointer)window.orbit.drag('move',0,0);});
 });
-function end(e){if(!pointer)return;const click=!pointer.moved&&e.type!=='pointercancel';if(raf){cancelAnimationFrame(raf);raf=null;}window.orbit.drag('end',e.screenX,e.screenY);pointer=null;petWalking=false;document.body.classList.remove('dragging');paint();if(click)toggleToolbar();}
+function end(e){if(!pointer)return;const click=!pointer.moved&&e.type!=='pointercancel';if(raf){cancelAnimationFrame(raf);raf=null;}window.orbit.drag('end',e.screenX,e.screenY);pointer=null;petWalking=false;petDragging=false;document.body.classList.remove('dragging');paint();if(click)toggleToolbar();}
 $('pet').addEventListener('pointerup',end);$('pet').addEventListener('pointercancel',end);$('pet').addEventListener('lostpointercapture',e=>{if(pointer)end({...e,type:'pointercancel'});});$('pet').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleToolbar();}});document.addEventListener('keydown',e=>{if(e.key==='Escape')expand(false);});
 
 function fitContent(){
@@ -145,12 +145,12 @@ function reportRegions(){
 new ResizeObserver(reportRegions).observe($('shell'));requestAnimationFrame(reportRegions);
 
 window.orbit.onRun?.(state=>{
- if(state.walking){if(state.direction)petDirection=state.direction;petWalking=true;closeMenus();if(open)expand(false);}
+ if(state.walking){petDragging=false;if(state.direction)petDirection=state.direction;petWalking=true;closeMenus();if(open)expand(false);}
  else if(!pointer)petWalking=false;
  updatePetSprite();requestAnimationFrame(reportRegions);
 });
 window.orbit.onLayout(layout=>{
- if(pointer&&layout.dragMotion){const motion=layout.dragMotion;pointer.travelX=motion.x;pointer.travelY=motion.y;const direction=pointer.direction.update(motion.x,motion.time,motion.y);if(direction!==petDirection){petDirection=direction;if(petWalking)applySpriteDirection();}if(!petWalking&&motion.moved){pointer.moved=true;petWalking=true;updatePetSprite();}}
+ if(pointer&&layout.dragMotion){const motion=layout.dragMotion;pointer.travelX=motion.x;pointer.travelY=motion.y;const direction=pointer.direction.update(motion.x,motion.time,motion.y);if(direction!==petDirection){petDirection=direction;if(petWalking)applySpriteDirection();}if(!petWalking&&motion.moved){pointer.moved=true;petWalking=true;petDragging=true;updatePetSprite();}}
  document.body.style.setProperty('--pet-x',layout.petX+'px');document.body.style.setProperty('--pet-y',layout.petY+'px');document.body.classList.toggle('above',layout.above);requestAnimationFrame(reportRegions);
 });
 let toolbarPinned=false;

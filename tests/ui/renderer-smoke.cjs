@@ -21,6 +21,8 @@ app.whenReady().then(async()=>{
   // Double submit is blocked, and typing while sending is not erased.
   await evaluate("$('prompt').value='hello';$('composer').requestSubmit();$('composer').requestSubmit();$('prompt').value='new draft'");await new Promise(r=>setTimeout(r,150));
   assert.deepEqual((await evaluate('testStats.get()')).sends,[{provider:'claude',prompt:'hello',thread:'two'}]);assert.equal(await evaluate("$('prompt').value"),'new draft');
+  const motion=await evaluate(`(()=>{settings.petMode='sprite';settings.spriteSheets={walking:{name:'Run'},dragging:{name:'Float'},idle:{name:'Idle'}};petWalking=true;petDragging=true;const drag=currentSpriteConfig().name;petDragging=false;const run=currentSpriteConfig().name;petWalking=false;return {drag,run,idle:currentSpriteConfig().name}})()`);
+  assert.deepEqual(motion,{drag:'Float',run:'Run',idle:'Idle'});
   // Toolbar spacing measures visible artwork, in either panel direction.
   const gaps=await evaluate(`(()=>{
    settings.spritePets=[{id:'gap-test',offsetY:18}];settings.activeSpritePet='gap-test';
