@@ -28,3 +28,9 @@ test('switching sheets holds the last frame until its replacement is ready',()=>
  h.images[1].onload();assert.equal(h.clears.length,clears+1);assert.equal(h.draws.length,2);
  h.player.set(null);assert.equal(h.clears.length,clears+2);
 });
+
+test('changing facing on an already playing sheet notifies without restarting its animation',()=>{
+ const h=harness();let ready=0;h.player.onReady=()=>ready++;
+ const config=sheet();h.player.set(config);h.images[0].onload();const draws=h.draws.length;
+ h.player.set(config);assert.equal(ready,2);assert.equal(h.draws.length,draws);assert.equal(h.images.length,1);assert.equal(h.frames.size,1);
+});
