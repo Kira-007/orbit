@@ -10,7 +10,8 @@ const {inactiveQueueError}=require('./resume-policy.cjs');
 const {placePet}=require('./geometry.cjs');
 const {createCursorReader,toScreenPoint}=require('./drag-cursor.cjs');
 const {createPetRunner}=require('./pet-runner.cjs');
-const {createPetFollower}=require('./pet-follower.cjs');
+const {createFleaQueue}=require('./flea-queue.cjs');
+const {createFleaMarker}=require('./flea-marker.cjs');
 const {listenForSummon}=require('./summon-control.cjs');
 const {Store,PROVIDERS}=require('./store.cjs');const {Activity}=require('./activity.cjs');
 const {agyUsage,codexUsage}=require('./fresh-usage.cjs');
@@ -45,24 +46,22 @@ const petRunner=createPetRunner({
  getPosition(){const b=win.getBounds();return {x:b.x+layout.petX,y:b.y+layout.petY};},
  move(x,y){if(win&&!win.isDestroyed())movePet(x,y);},
  onStart({direction}){win.webContents.send('run-state',{walking:true,direction});},
- onEnd({cancelled}){if(win&&!win.isDestroyed()){win.webContents.send('run-state',{walking:false});if(!cancelled)save();}}
+ onEnd({cancelled}){if(win&&!win.isDestroyed()){win.webContents.send('run-state',{walking:false});if(!cancelled){save();fleaQueue.complete();}}}
 });
-const petFollower=createPetFollower({
- getSpeed:()=>(preferences?.movementSpeed||700)*.5,
- getRadius:()=>20*(preferences?.petScale||1),
- getPosition(){const b=win.getBounds();return{x:b.x+layout.petX,y:b.y+layout.petY};},
- async getTarget(){
-  const cursor=await readDragCursor(),scale=preferences?.petScale||1,bounds=win.getBounds(),area=screen.getDisplayNearestPoint(cursor).workArea;
+const fleaQueue=createFleaQueue({
+ createMarker:point=>createFleaMarker(point,stateDir),
+ removeMarker:marker=>{if(!marker.isDestroyed())marker.destroy();},
+ getDestination(cursor){
+  const scale=preferences?.petScale||1,bounds=win.getBounds(),area=screen.getDisplayNearestPoint(cursor).workArea;
   const destination=placePet(cursor.x-75*scale,cursor.y-64.5*scale,area,bounds.width,Math.min(bounds.height,canvasHeight||bounds.height),scale);
   return{x:destination.x+destination.petX,y:destination.y+destination.petY};
  },
- move(x,y){if(win&&!win.isDestroyed())movePet(x,y);},
- onMotion(state){if(win&&!win.isDestroyed())win.webContents.send('run-state',state);},
- onStop(){save();}
+ run:point=>petRunner.run(point),stop:()=>petRunner.stop()
 });
-function summonPet(){
+function summonPet(point){
  if(!win||win.isDestroyed()||drag)return;
- petRunner.stop();if(!petFollower.following)win.showInactive();petFollower.toggle();
+ const cursor=toScreenPoint(point,hyprMonitors,screen.getAllDisplays());
+ win.showInactive();if(!fleaQueue.add(cursor))throw Error('Flea queue full');
 }
 let quotaRefresh=null;
 function refreshUsage(){
@@ -125,7 +124,7 @@ app.whenReady().then(()=>{
  win.loadFile(path.join(__dirname,'../renderer/index.html'));win.once('ready-to-show',()=>{startInputShape();win.showInactive();});
  win.setIgnoreMouseEvents(true,{forward:true});ignoring=true;execFile('hyprctl',['monitors','-j'],{timeout:1000},(err,out)=>{if(!err)try{hyprMonitors=JSON.parse(out);}catch{}});pointerTimer=setInterval(pointerPolicy,60);
  activity=new Activity(store,stateDir);activity.poll();refreshUsage();timer=setInterval(()=>{activity.poll();send();},1000);
- const icon=nativeImage.createFromPath(path.join(__dirname,'../../assets/icons/tray.png'));if(!icon.isEmpty()){tray=new Tray(icon);tray.setToolTip('Orbit · your agent companion');tray.setContextMenu(Menu.buildFromTemplate([{label:'Show companion',click:()=>win.show()},{label:'Hide companion',click:()=>win.hide()},{type:'separator'},{label:'Quit Orbit',click:()=>app.quit()}]));tray.on('click',()=>win.isVisible()?win.hide():win.show());}
+ const icon=nativeImage.createFromPath(path.join(__dirname,'../../assets/icons/tray.png'));if(!icon.isEmpty()){tray=new Tray(icon);tray.setToolTip('Orbit · your agent companion');tray.setContextMenu(Menu.buildFromTemplate([{label:'Show companion',click:()=>win.show()},{label:'Hide companion',click:()=>{fleaQueue.clear();win.hide();}},{type:'separator'},{label:'Quit Orbit',click:()=>app.quit()}]));tray.on('click',()=>{if(win.isVisible()){fleaQueue.clear();win.hide();}else win.show();});}
 });
 ipcMain.on('ready',(_,viewport)=>{if(Number.isFinite(viewport?.height)&&viewport.height>0)canvasHeight=viewport.height;if(startupAnchor){const bounds=win.getBounds();layout.petY=startupAnchor.y-bounds.y;startupAnchor=null;}layout.petY=Math.max(0,Math.min(layout.petY,(canvasHeight||win.getBounds().height)-129*(preferences?.petScale||1)));send();win.webContents.send('layout',layout);});
 ipcMain.on('pet-viewport',(_,viewport)=>{if(!Number.isFinite(viewport?.height)||viewport.height<=0)return;canvasHeight=viewport.height;if(startupAnchor){const bounds=win.getBounds();layout.petY=startupAnchor.y-bounds.y;startupAnchor=null;}layout.petY=Math.max(0,Math.min(layout.petY,canvasHeight-129*(preferences?.petScale||1)));win.webContents.send('layout',layout);save();});
@@ -134,7 +133,7 @@ ipcMain.on('expand',(_,open)=>{if(drag||!win)return;expanded=open;pointerPolicy(
 ipcMain.on('drag',(_,e)=>{
  if(!win||!['start','move','end'].includes(e.phase))return;
  if(e.phase==='start'){
-  petFollower.stop();petRunner.stop();
+  fleaQueue.clear();
   if(!Number.isFinite(e.x)||!Number.isFinite(e.y))return;
   if(!inputShapeReady)win.setIgnoreMouseEvents(false);ignoring=false;const b=win.getBounds();
   const grabX=Number.isFinite(e.grab?.x)?e.grab.x:e.x-b.x-layout.petX,grabY=Number.isFinite(e.grab?.y)?e.grab.y:e.y-b.y-layout.petY;
@@ -195,7 +194,7 @@ ipcMain.handle('start-task',async(_,{provider,prompt,thread}={})=>{
   child.once('close',code=>{store.update({provider,session:selected.id,title:selected.name,workspace:cwd,status:code===0?'done':'error',time:Date.now(),activity:(code===0?output:errorText).trim().slice(-1000)||'Conversation finished'});send();});
  });
 });
-ipcMain.on('hide-pet',()=>{petFollower.stop();petRunner.stop();win.hide();});
+ipcMain.on('hide-pet',()=>{fleaQueue.clear();win.hide();});
 ipcMain.on('refresh-usage',refreshUsage);
 ipcMain.on('open-settings',showSettingsWindow);
 ipcMain.on('settings-initialize',(_,value)=>{if(!preferences)persistPreferences(value);else win.webContents.send('settings-changed',preferences);});
@@ -211,5 +210,5 @@ ipcMain.handle('pick-sprite-sheet',async event=>{
  return {sheet:require('node:url').pathToFileURL(destination).href,name:path.basename(source),frames:1,columns:1,fps:10};
 });
 ipcMain.on('settings-close' ,()=>settingsWin?.close());
-ipcMain.on('reset-position',()=>{petFollower.stop();petRunner.stop();const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
-ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{petFollower.stop();petRunner.stop();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());
+ipcMain.on('reset-position',()=>{fleaQueue.clear();const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
+ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{fleaQueue.clear();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());

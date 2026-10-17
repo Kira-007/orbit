@@ -42,7 +42,7 @@ Set `ORBIT_ELECTRON` to an alternative Electron executable. Set `ORBIT_CODEX_DES
 ## Use
 
 - Click the pet to open/close its toolbar; drag to move it.
-- **Win + Y** toggles cursor following. The pet follows your live cursor, pauses on contact, and resumes when you move away. Press again to stop; dragging or hiding the pet also stops following. Movement speed is adjustable in Settings.
+- **Win + Y** drops a flea at the captured cursor position. The pet runs to collect queued fleas in order and stays at the last location when the queue is empty. Dragging, hiding, or resetting the pet clears pending fleas.
 - Chat and notifications are separate views. Select a harness and thread before sending. Enter sends; Shift+Enter inserts a line break.
 - Click a task card to open Orbit’s composer with its harness and exact session selected. Completed/error cards are dismissed after that session loads. The × button dismisses any card. Notification clicks do not focus another application.
 - Completions and errors expire after 10 minutes by default (Settings → Recent tasks). Running/waiting cards disappear after 15 minutes without updates; idle/stale cards are cleared. Dismissal follows that task run, so a later run with the same title can notify again. Hovering the pet does not take keyboard focus.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Toggle live cursor following for a running Orbit pet."""
+"""Drop a flea at the captured cursor position for Orbit to collect."""
 import argparse,json,math,os,pathlib,socket,subprocess,time
 
 def endpoint():
