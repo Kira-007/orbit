@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ask a running Orbit pet to walk to a captured Hyprland cursor position."""
+"""Toggle live cursor following for a running Orbit pet."""
 import argparse,json,math,os,pathlib,socket,subprocess,time
 
 def endpoint():

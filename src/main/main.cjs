@@ -10,6 +10,7 @@ const {inactiveQueueError}=require('./resume-policy.cjs');
 const {placePet}=require('./geometry.cjs');
 const {createCursorReader,toScreenPoint}=require('./drag-cursor.cjs');
 const {createPetRunner}=require('./pet-runner.cjs');
+const {createPetFollower}=require('./pet-follower.cjs');
 const {listenForSummon}=require('./summon-control.cjs');
 const {Store,PROVIDERS}=require('./store.cjs');const {Activity}=require('./activity.cjs');
 const {agyUsage,codexUsage}=require('./fresh-usage.cjs');
@@ -46,12 +47,22 @@ const petRunner=createPetRunner({
  onStart({direction}){win.webContents.send('run-state',{walking:true,direction});},
  onEnd({cancelled}){if(win&&!win.isDestroyed()){win.webContents.send('run-state',{walking:false});if(!cancelled)save();}}
 });
-function summonPet(point){
+const petFollower=createPetFollower({
+ getSpeed:()=>(preferences?.movementSpeed||700)*.5,
+ getRadius:()=>20*(preferences?.petScale||1),
+ getPosition(){const b=win.getBounds();return{x:b.x+layout.petX,y:b.y+layout.petY};},
+ async getTarget(){
+  const cursor=await readDragCursor(),scale=preferences?.petScale||1,bounds=win.getBounds(),area=screen.getDisplayNearestPoint(cursor).workArea;
+  const destination=placePet(cursor.x-75*scale,cursor.y-64.5*scale,area,bounds.width,Math.min(bounds.height,canvasHeight||bounds.height),scale);
+  return{x:destination.x+destination.petX,y:destination.y+destination.petY};
+ },
+ move(x,y){if(win&&!win.isDestroyed())movePet(x,y);},
+ onMotion(state){if(win&&!win.isDestroyed())win.webContents.send('run-state',state);},
+ onStop(){save();}
+});
+function summonPet(){
  if(!win||win.isDestroyed()||drag)return;
- const cursor=toScreenPoint(point,hyprMonitors,screen.getAllDisplays()),scale=preferences?.petScale||1;
- const bounds=win.getBounds(),area=screen.getDisplayNearestPoint(cursor).workArea;
- const destination=placePet(cursor.x-75*scale,cursor.y-64.5*scale,area,bounds.width,Math.min(bounds.height,canvasHeight||bounds.height),scale);
- win.showInactive();petRunner.run({x:destination.x+destination.petX,y:destination.y+destination.petY});
+ petRunner.stop();if(!petFollower.following)win.showInactive();petFollower.toggle();
 }
 let quotaRefresh=null;
 function refreshUsage(){
@@ -123,7 +134,7 @@ ipcMain.on('expand',(_,open)=>{if(drag||!win)return;expanded=open;pointerPolicy(
 ipcMain.on('drag',(_,e)=>{
  if(!win||!['start','move','end'].includes(e.phase))return;
  if(e.phase==='start'){
-  petRunner.stop();
+  petFollower.stop();petRunner.stop();
   if(!Number.isFinite(e.x)||!Number.isFinite(e.y))return;
   if(!inputShapeReady)win.setIgnoreMouseEvents(false);ignoring=false;const b=win.getBounds();
   const grabX=Number.isFinite(e.grab?.x)?e.grab.x:e.x-b.x-layout.petX,grabY=Number.isFinite(e.grab?.y)?e.grab.y:e.y-b.y-layout.petY;
@@ -184,7 +195,7 @@ ipcMain.handle('start-task',async(_,{provider,prompt,thread}={})=>{
   child.once('close',code=>{store.update({provider,session:selected.id,title:selected.name,workspace:cwd,status:code===0?'done':'error',time:Date.now(),activity:(code===0?output:errorText).trim().slice(-1000)||'Conversation finished'});send();});
  });
 });
-ipcMain.on('hide-pet',()=>{petRunner.stop();win.hide();});
+ipcMain.on('hide-pet',()=>{petFollower.stop();petRunner.stop();win.hide();});
 ipcMain.on('refresh-usage',refreshUsage);
 ipcMain.on('open-settings',showSettingsWindow);
 ipcMain.on('settings-initialize',(_,value)=>{if(!preferences)persistPreferences(value);else win.webContents.send('settings-changed',preferences);});
@@ -200,5 +211,5 @@ ipcMain.handle('pick-sprite-sheet',async event=>{
  return {sheet:require('node:url').pathToFileURL(destination).href,name:path.basename(source),frames:1,columns:1,fps:10};
 });
 ipcMain.on('settings-close' ,()=>settingsWin?.close());
-ipcMain.on('reset-position',()=>{petRunner.stop();const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
-ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{petRunner.stop();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());
+ipcMain.on('reset-position',()=>{petFollower.stop();petRunner.stop();const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
+ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{petFollower.stop();petRunner.stop();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());
