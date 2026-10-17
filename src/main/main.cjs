@@ -188,6 +188,7 @@ ipcMain.on('hide-pet',()=>{petRunner.stop();win.hide();});
 ipcMain.on('refresh-usage',refreshUsage);
 ipcMain.on('open-settings',showSettingsWindow);
 ipcMain.on('settings-initialize',(_,value)=>{if(!preferences)persistPreferences(value);else win.webContents.send('settings-changed',preferences);});
+ipcMain.handle('usage-bar-select',(event,selection)=>{if(event.sender!==win?.webContents)throw Error('Pet window required');return persistPreferences({...preferences,usageBar:selection});});
 ipcMain.handle('settings-get',()=>preferences||normalizeSettings());
 ipcMain.handle('settings-update',(event,value)=>{if(event.sender!==settingsWin?.webContents)throw Error('Settings window required');return persistPreferences(value);});
 ipcMain.handle('pick-sprite-sheet',async event=>{

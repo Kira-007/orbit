@@ -1,5 +1,6 @@
 const {contextBridge,ipcRenderer}=require('electron');
 contextBridge.exposeInMainWorld('orbit',{
+ selectUsageBar:selection=>ipcRenderer.invoke('usage-bar-select',selection),
  refreshUsage:()=>ipcRenderer.send('refresh-usage'),viewport:()=>ipcRenderer.send('pet-viewport',{height:window.innerHeight,width:window.innerWidth}),hide:()=>ipcRenderer.send('hide-pet'),
  openSettings:()=>ipcRenderer.send('open-settings'),
  initializeSettings:settings=>ipcRenderer.send('settings-initialize',settings),

@@ -49,3 +49,10 @@ test('global pet offsets survive saving and apply independently of animation sel
  const saved=normalizeSettings(JSON.parse(JSON.stringify(p)));
  assert.equal(saved.spritePets[0].offsetX,25);assert.equal(saved.spritePets[0].offsetY,-15);
 });
+
+test('collapsed usage selection persists and rejects invalid providers',()=>{
+ const p=normalizeSettings({usageBar:{provider:'antigravity',label:'gemini-5h'}});
+ assert.deepEqual(normalizeSettings(JSON.parse(JSON.stringify(p))).usageBar,{provider:'antigravity',label:'gemini-5h'});
+ assert.equal(normalizeSettings({usageBar:{provider:'unknown',label:'x'}}).usageBar,null);
+ assert.equal(normalizeSettings({usageBar:null}).usageBar,null);
+});

@@ -178,8 +178,22 @@ async function cycleNotification(direction){
 }
 $('cards').addEventListener('wheel',e=>{if(stackExpanded||!open||chatOpen||usageOpen)return;e.preventDefault();if(!e.deltaY||stackAnimating||Date.now()-lastStackScroll<180)return;lastStackScroll=Date.now();cycleNotification(e.deltaY>0?1:-1);},{passive:false});
 
+function paintUsageBar(){
+ const selected=settings.usageBar,meter=$('collapsed-usage-fill');if(!meter)return;
+ const quota=selected&&data.usage?.[selected.provider]?.windows?.find(w=>w.label===selected.label),valid=quota&&Number.isFinite(quota.remaining)&&(!quota.reset||quota.reset>Date.now());
+ const value=valid?Math.max(0,Math.min(100,quota.remaining)):0;
+ meter.style.width=value+'%';meter.style.background=({codex:'#eeeeee',claude:'#ee9877',antigravity:'#8bdba4'})[selected?.provider]||'#eeeeee';
+ const toolbar=$('toolbar');toolbar.title=selected?(valid?selected.provider+' · '+selected.label+' · '+value+'% remaining':'Selected limit unavailable'):'Choose a limit using the eye in Usage';
+ meter.setAttribute('aria-label',toolbar.title);meter.setAttribute('aria-valuenow',String(value));meter.hidden=!selected;
+}
+async function selectUsageBar(provider,label){
+ const previous=settings.usageBar;settings.usageBar=previous?.provider===provider&&previous.label===label?null:{provider,label};paintUsage();
+ try{const saved=await window.orbit.selectUsageBar(settings.usageBar);if(saved)settings=saved;localStorage.setItem('orbit-settings',JSON.stringify(settings));}catch{settings.usageBar=previous;}
+ paintUsage();
+}
 function paintUsage(){
- const signature=JSON.stringify([data.usage,data.usageStatus]);if(signature===usageSignature)return;usageSignature=signature;
+ paintUsageBar();
+ const signature=JSON.stringify([data.usage,data.usageStatus,settings.usageBar]);if(signature===usageSignature)return;usageSignature=signature;
  const panel=$('usage-panel'),scroll=panel.scrollTop;panel.replaceChildren();
  for(const [key,name,color] of [['claude','Claude','claude'],['codex','Codex','codex-desktop'],['antigravity','AGY','agy']]){
   const snapshot=data.usage?.[key],status=data.usageStatus?.[key];
@@ -190,7 +204,10 @@ function paintUsage(){
   else for(const window of snapshot.windows){
    const row=document.createElement('div');row.className='usage-row';const label=document.createElement('span');
    label.textContent=window.label.replace(/^(gemini|3p)-(5h|weekly)$/,(match,group,period)=>(group==='gemini'?'Gemini':'Claude / GPT')+' · '+(period==='weekly'?'Week':'5h')).replace(/Gemini Models/g,'Gemini').replace(/Claude and GPT models/g,'Claude / GPT').replace(/Five Hour Limit Remaining/g,'5h').replace(/Weekly Limit Remaining/g,'Week').replace(/^Session$/,'5h').replace(/^Weekly$/,'Week');
-   const amount=document.createElement('strong');const expired=window.reset&&window.reset<=Date.now();amount.textContent=expired?'—':window.remaining+'%';row.append(label,amount);
+   const amount=document.createElement('strong');const expired=window.reset&&window.reset<=Date.now();amount.textContent=expired?'—':window.remaining+'%';const eye=document.createElement('button');eye.type='button';eye.className='usage-eye';const selected=settings.usageBar?.provider===key&&settings.usageBar.label===window.label;
+   eye.classList.toggle('selected',selected);eye.setAttribute('aria-pressed',String(selected));eye.setAttribute('aria-label',(selected?'Hide ':'Show ')+name+' '+label.textContent+' on collapsed bar');eye.title=selected?'Remove from collapsed bar':'Show on collapsed bar';
+   eye.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+   eye.onclick=()=>selectUsageBar(key,window.label);row.append(label,eye,amount);
    if(window.reset)row.title='Resets '+new Date(window.reset).toLocaleString();
    const meter=document.createElement('progress');meter.max=100;meter.value=expired?0:window.remaining;meter.setAttribute('aria-label',label.textContent+' quota remaining');card.append(row,meter);
   }

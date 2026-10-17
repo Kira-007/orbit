@@ -216,3 +216,13 @@ body.dragging #pet,body.dragging #toolbar,body.dragging #toolbar button,body.dra
 .usage-card{padding:12px 14px;border-radius:16px;margin-bottom:7px}.usage-name{display:flex;justify-content:space-between;font-size:12px;margin-bottom:7px}.usage-row{font-size:11px;margin:8px 0 4px}.usage-row strong{font-size:12px;font-variant-numeric:tabular-nums}.usage-indicator{color:#a49aa9;font-weight:400;font-size:12px}.usage-note{font-size:11px;margin:0}.usage-card progress{height:4px}.usage-card.claude progress::-webkit-progress-value{background:#ee9877}.usage-card.agy progress::-webkit-progress-value{background:#8bdba4}
 
 body.dragging #pet{filter:none!important}
+
+/* Selected remaining quota fills the resting toolbar. */
+#collapsed-usage-fill{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;pointer-events:none;transition:width .35s ease,background .2s ease}
+#collapsed-usage-fill[hidden],.toolbar-expanded #collapsed-usage-fill{display:none}
+.usage-row{align-items:center}.usage-row>span:first-child{flex:1}.usage-row strong{min-width:36px;text-align:right}
+.usage-eye{display:grid;place-items:center;flex:none;width:25px;height:25px;padding:4px;border-radius:50%;background:transparent;color:#aaa4ae;opacity:0;transition:opacity .15s ease,background .15s ease}
+.usage-eye svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.usage-row:hover .usage-eye,.usage-row:focus-within .usage-eye,.usage-eye.selected{opacity:1}.usage-eye:hover,.usage-eye.selected{background:#ffffff14;color:#eee}
+
+.usage-card.codex-desktop progress::-webkit-progress-value{background:#eee}

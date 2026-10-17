@@ -23,6 +23,16 @@ app.whenReady().then(async()=>{
   assert.deepEqual((await evaluate('testStats.get()')).sends,[{provider:'claude',prompt:'hello',thread:'two'}]);assert.equal(await evaluate("$('prompt').value"),'new draft');
   const motion=await evaluate(`(()=>{settings.petMode='sprite';settings.spriteSheets={walking:{name:'Run'},dragging:{name:'Float'},idle:{name:'Idle'}};petWalking=true;petDragging=true;const drag=currentSpriteConfig().name;petDragging=false;const run=currentSpriteConfig().name;petWalking=false;return {drag,run,idle:currentSpriteConfig().name}})()`);
   assert.deepEqual(motion,{drag:'Float',run:'Run',idle:'Idle'});
+  await evaluate(`data.usage={codex:{windows:[{label:'Session',remaining:63,reset:Date.now()+60000}]},antigravity:{windows:[{label:'Gemini',remaining:28}]}};paintUsage();document.querySelector('.usage-card.codex-desktop .usage-eye').click()`);
+  await new Promise(r=>setTimeout(r,30));
+  assert.equal(await evaluate("$('collapsed-usage-fill').style.width"),'63%');
+  assert.equal(await evaluate("document.querySelector('.usage-card.codex-desktop .usage-eye').getAttribute('aria-pressed')"),'true');
+  await evaluate("document.querySelector('.usage-card.agy .usage-eye').click()");await new Promise(r=>setTimeout(r,30));
+  assert.equal(await evaluate("$('collapsed-usage-fill').style.width"),'28%');
+  assert.equal(await evaluate("$('collapsed-usage-fill').style.background"),'rgb(139, 219, 164)');
+  await evaluate("data.usage.antigravity.windows[0].reset=Date.now()-1;paintUsage()");assert.equal(await evaluate("$('collapsed-usage-fill').style.width"),'0%');
+  await evaluate("document.querySelector('.usage-card.agy .usage-eye').click()");await new Promise(r=>setTimeout(r,30));
+  assert.equal(await evaluate("$('collapsed-usage-fill').hidden"),true);
   // Toolbar spacing measures visible artwork, in either panel direction.
   const gaps=await evaluate(`(()=>{
    settings.spritePets=[{id:'gap-test',offsetY:18}];settings.activeSpritePet='gap-test';
