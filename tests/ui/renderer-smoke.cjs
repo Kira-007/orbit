@@ -21,6 +21,20 @@ app.whenReady().then(async()=>{
   // Double submit is blocked, and typing while sending is not erased.
   await evaluate("$('prompt').value='hello';$('composer').requestSubmit();$('composer').requestSubmit();$('prompt').value='new draft'");await new Promise(r=>setTimeout(r,150));
   assert.deepEqual((await evaluate('testStats.get()')).sends,[{provider:'claude',prompt:'hello',thread:'two'}]);assert.equal(await evaluate("$('prompt').value"),'new draft');
+  // Toolbar spacing measures visible artwork, in either panel direction.
+  const gaps=await evaluate(`(()=>{
+   settings.spritePets=[{id:'gap-test',offsetY:18}];settings.activeSpritePet='gap-test';
+   spriteBounds={top:50,bottom:200};$('pet-sprite').hidden=false;
+   document.body.classList.add('toolbar-expanded');const values=[];
+   for(const gap of [18,-8])for(const above of [false,true]){
+    settings.spritePets[0].offsetY=gap;
+    document.body.classList.toggle('above',above);fitContent();
+    const pet=$('pet').getBoundingClientRect(),bar=$('toolbar').getBoundingClientRect(),factor=pet.height/$('pet-sprite').height;
+    values.push({expected:gap,actual:above?pet.top+50*factor-bar.bottom:bar.top-(pet.top+200*factor)});
+   }
+   return values;
+  })()`);
+  for(const gap of gaps)assert(Math.abs(gap.actual-gap.expected)<1,'Incorrect visible sprite–toolbar gap: '+JSON.stringify(gap));
   assert.equal(errors.filter(x=>!x.includes('Content-Security-Policy')).length,0,errors.join('\n'));
   console.log('PASS renderer: exact session, done dismissal, missing target, async race, duplicate submission, draft retention, no external focus');
  }catch(e){console.error(e);process.exitCode=1;}finally{win.destroy();app.quit();}
