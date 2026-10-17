@@ -27,6 +27,20 @@ test('custom preview follows the animations setting',async()=>{
  assert.equal(h.run("document.body.classes.has('animations-off')"),false);
 });
 
+test('movement speed slider displays and saves a numeric value without changing animation speed',async()=>{
+ const h=await harness();
+ assert.equal(h.el('movementSpeed').value,700);
+ assert.equal(h.el('movement-speed-label').textContent,'700 px/s');
+ h.el('movementSpeed').value='1150';h.el('movementSpeed').listeners.input();
+ assert.equal(h.el('movement-speed-label').textContent,'1150 px/s');
+ h.el('movementSpeed').listeners.change();await h.flush();
+ assert.equal(h.updates.at(-1).movementSpeed,1150);
+ assert.equal(h.updates.at(-1).spriteSheets.idle.fps,9);
+ assert.equal(h.updates.at(-1).petScale,1);
+ const html=fs.readFileSync(path.join(__dirname,'../src/renderer/settings.html'),'utf8');
+ assert.match(html,/<input id="movementSpeed" type="range" min="150" max="1800" step="50"/);
+});
+
 test('upload keeps its original pet and animation when selection changes during the dialog',async()=>{
  let finish;const h=await harness({pickSpriteSheet:()=>new Promise(resolve=>finish=resolve)});
  const uploading=h.el('pick-sprite').onclick();

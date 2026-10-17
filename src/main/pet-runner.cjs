@@ -2,7 +2,7 @@
 
 // Coordinates are pet top-left positions in the same space as getPosition().
 // A cancelled run reports onEnd({cancelled:true}); a replacement starts there.
-function createPetRunner({getPosition,move,onStart=()=>{},onEnd=()=>{},now=()=>performance.now(),schedule=setTimeout,cancel=clearTimeout,speed=700}){
+function createPetRunner({getPosition,move,onStart=()=>{},onEnd=()=>{},now=()=>performance.now(),schedule=setTimeout,cancel=clearTimeout,speed=700,getSpeed=()=>speed}){
  if(typeof getPosition!=='function'||typeof move!=='function')throw new TypeError('Pet movement callbacks are required');
  if(!Number.isFinite(speed)||speed<=0)throw new TypeError('Pet speed must be positive');
  let active=null;
@@ -33,6 +33,8 @@ function createPetRunner({getPosition,move,onStart=()=>{},onEnd=()=>{},now=()=>p
  const run=target=>{
   const destination={x:target?.x,y:target?.y};
   if(!Number.isFinite(destination.x)||!Number.isFinite(destination.y))throw new TypeError('Invalid pet destination');
+  const movementSpeed=getSpeed();
+  if(!Number.isFinite(movementSpeed)||movementSpeed<=0)throw new TypeError('Pet speed must be positive');
   stop();
   const position=getPosition(),start={x:position?.x,y:position?.y};
   if(!Number.isFinite(start.x)||!Number.isFinite(start.y))throw new TypeError('Invalid pet position');
@@ -40,7 +42,7 @@ function createPetRunner({getPosition,move,onStart=()=>{},onEnd=()=>{},now=()=>p
   if(distance<1)return false;
   // Near-vertical travel leaves the sprite's current facing unchanged.
   const direction=Math.abs(dx)<=Math.max(1,Math.abs(dy)*.1)?0:Math.sign(dx);
-  const current={start,target:destination,dx,dy,direction,started:now(),duration:Math.max(180,Math.min(3000,distance/speed*1000)),timer:null};
+  const current={start,target:destination,dx,dy,direction,started:now(),duration:Math.max(180,Math.min(15000,distance/movementSpeed*1000)),timer:null};
   active=current;
   onStart({direction});
   if(active===current)current.timer=schedule(()=>frame(current),Math.min(16,current.duration));

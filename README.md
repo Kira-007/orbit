@@ -48,6 +48,7 @@ Set `ORBIT_ELECTRON` to an alternative Electron executable. Set `ORBIT_CODEX_DES
 - Completions and errors expire after 10 minutes by default (Settings → Recent tasks). Running/waiting cards disappear after 15 minutes without updates; idle/stale cards are cleared. Dismissal follows that task run, so a later run with the same title can notify again. Hovering the pet does not take keyboard focus.
 - Right-click for Hide or Settings; the tray restores a hidden pet.
 - Settings → Customize supports body colors, expression, and sprite pets. Upload a sheet for each animation, set frame count and its facing, and adjust each animation's speed independently.
+- Settings → **Movement speed** changes cursor-shortcut travel speed from 150–1800 px/s (default 700). It applies to the next shortcut press and is saved automatically. Sprite FPS is configured separately per animation.
 - Walking follows your drag direction, while transparent empty space passes clicks through.
 
 The built-in robot needs no assets. The bundled Beatrice sprite uses the upstream MIT license; see `assets/library/SOURCES.md`. Other sprites from the personal development setup are excluded from this distribution.

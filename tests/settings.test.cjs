@@ -1,5 +1,13 @@
 const test=require('node:test'),assert=require('node:assert/strict');const {normalizeSettings}=require('../src/main/settings.cjs');const {placePet}=require('../src/main/geometry.cjs');
 test('customization validates colors, names, expressions, and size bounds',()=>{const p=normalizeSettings({petScale:10,petName:'  Nova  ',bodyColor:'invalid',accentColor:'#12ab34',face:'focused'});assert.equal(p.petScale,1.6);assert.equal(p.petName,'Nova');assert.equal(p.bodyColor,'#90bbb7');assert.equal(p.accentColor,'#12ab34');assert.equal(p.face,'focused');assert.equal(normalizeSettings({petScale:-1}).petScale,.6);});
+test('movement speed defaults for existing settings, clamps bounds, and survives saving',()=>{
+ assert.equal(normalizeSettings({petScale:1.25}).movementSpeed,700);
+ for(const value of [NaN,Infinity,'900',null])assert.equal(normalizeSettings({movementSpeed:value}).movementSpeed,700);
+ assert.equal(normalizeSettings({movementSpeed:20}).movementSpeed,150);
+ assert.equal(normalizeSettings({movementSpeed:9000}).movementSpeed,1800);
+ const saved=normalizeSettings(JSON.parse(JSON.stringify(normalizeSettings({movementSpeed:1150,petScale:1.25}))));
+ assert.equal(saved.movementSpeed,1150);assert.equal(saved.petScale,1.25);
+});
 test('scaled pet can reach corners without moving outside the screen',()=>{const area={x:0,y:0,width:1920,height:1200};for(const scale of [.6,1,1.6]){const x=1920-150*scale,y=1200-129*scale,p=placePet(x,y,area,374,630,scale);assert(Math.abs(p.x+p.petX-x)<=1);assert(Math.abs(p.y+p.petY-y)<=1);assert(p.petX>=0&&p.petX+150*scale<=375);assert(p.petY>=0&&p.petY+129*scale<=631);}});
 
 test('sprite settings preserve independent animation sheets and bound frame counts',()=>{const settings=normalizeSettings({spriteSheets:{walking:{sheet:'file:///tmp/walk.png',frames:8,columns:8,fps:12},idle:{sheet:'file:///tmp/pet.png',frames:8,columns:4,fps:12},working:{sheet:'file:///tmp/work.png',frames:999,columns:0,fps:90},error:{sheet:'https://example.com/pet.png'}}});assert.equal(settings.spriteSheets.walking.frames,8);assert.equal(settings.spriteSheets.idle.frames,8);assert.equal(settings.spriteSheets.idle.columns,4);assert.equal(settings.spriteSheets.working.frames,256);assert.equal(settings.spriteSheets.working.fps,60);assert.equal(settings.spriteSheets.error,undefined);});

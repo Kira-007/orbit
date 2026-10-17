@@ -40,6 +40,7 @@ function movePet(x,y,dragMotion){
 }
 let summonControl=null;
 const petRunner=createPetRunner({
+ getSpeed:()=>preferences?.movementSpeed||700,
  getPosition(){const b=win.getBounds();return {x:b.x+layout.petX,y:b.y+layout.petY};},
  move(x,y){if(win&&!win.isDestroyed())movePet(x,y);},
  onStart({direction}){win.webContents.send('run-state',{walking:true,direction});},

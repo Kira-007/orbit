@@ -60,10 +60,10 @@ test('bounds short and long runs while preserving exact final coordinates',()=>{
  short.tick(179);assert.equal(short.runner.running,true);
  short.tick(1);assert.deepEqual(short.position,{x:2,y:0});
  assert.equal(short.ends[0].time,180);
- const long=harness();long.runner.run({x:7000,y:1234});
- long.tick(2999);assert.equal(long.runner.running,true);
- long.tick(1);assert.deepEqual(long.position,{x:7000,y:1234});
- assert.equal(long.ends[0].time,3000);
+ const long=harness();long.runner.run({x:70000,y:1234});
+ long.tick(14999);assert.equal(long.runner.running,true);
+ long.tick(1);assert.deepEqual(long.position,{x:70000,y:1234});
+ assert.equal(long.ends[0].time,15000);
 });
 
 test('configured speed changes travel duration',()=>{
@@ -112,4 +112,18 @@ test('rejects invalid destinations without interrupting a valid run',()=>{
  assert.equal(h.runner.running,true);assert.equal(h.ends.length,0);
  h.tick(1000);assert.deepEqual(h.position,{x:700,y:0});
  assert.throws(()=>createPetRunner({getPosition:()=>({x:0,y:0}),move:()=>{},speed:0}),/speed/);
+});
+
+
+test('each shortcut reads the current speed without changing an in-flight run',()=>{
+ let speed=700;const h=harness({getSpeed:()=>speed});
+ h.runner.run({x:700,y:0});speed=350;h.tick(1000);
+ assert.deepEqual(h.position,{x:700,y:0});assert.equal(h.ends[0].time,1000);
+ h.runner.run({x:1400,y:0});h.tick(1000);assert.equal(h.runner.running,true);
+ h.tick(1000);assert.deepEqual(h.position,{x:1400,y:0});assert.equal(h.ends[1].time,3000);
+});
+test('slow speeds remain distinct across a full screen of travel',()=>{
+ const h=harness({getSpeed:()=>150});h.runner.run({x:1500,y:0});
+ h.tick(3000);assert.equal(h.runner.running,true);
+ h.tick(7000);assert.deepEqual(h.position,{x:1500,y:0});assert.equal(h.ends[0].time,10000);
 });
