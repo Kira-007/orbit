@@ -12,7 +12,12 @@ def remove_block(text):
 def lua_string(value):
     import json
     return json.dumps(str(value),ensure_ascii=False)
+def summon_binding(script=None):
+    script=script or ROOT/'scripts/summon.py'
+    command=lua_string('python3 '+shlex.quote(str(script)))
+    return 'hl.bind("SUPER + CTRL + ALT + P", function() local cursor = hl.get_cursor_pos(); if cursor then hl.exec_cmd('+command+' .. " " .. cursor.x .. " " .. cursor.y) end end, { description = "[Orbit] Run pet to cursor" })'
+
 def block(autostart):
     rule='hl.window_rule({ name = "orbit_portable", match = { class = "^(agent-pet|orbit-agent-pet)$", title = "^Orbit Agent Pet$" }, float = true, pin = true, no_follow_mouse = true, no_initial_focus = true, border_size = 0, no_blur = true, no_shadow = true, no_anim = true, opacity = 1.0 })'
     startup='\nhl.on("hyprland.start", function() hl.exec_cmd('+lua_string(shlex.quote(str(ROOT/'start.sh')))+') end)' if autostart else ''
-    return START+'\n'+rule+startup+'\n'+END+'\n'
+    return START+'\n'+rule+'\n'+summon_binding()+startup+'\n'+END+'\n'

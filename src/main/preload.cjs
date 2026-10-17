@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('orbit',{
  onPreferences:fn=>ipcRenderer.on('settings-changed',(_,settings)=>fn(settings)),
  resetPosition:()=>ipcRenderer.send('reset-position'),
  onSettings:fn=>ipcRenderer.on('show-settings',()=>fn()),
+ onRun:fn=>ipcRenderer.on('run-state',(_,state)=>fn(state)),
  onLayout:fn=>ipcRenderer.on('layout',(_,layout)=>fn(layout)),
  onState:fn=>{const cb=(_,state)=>fn(state);ipcRenderer.on('state',cb);return()=>ipcRenderer.removeListener('state',cb);},
  hitRegions:regions=>ipcRenderer.send('hit-regions',regions),

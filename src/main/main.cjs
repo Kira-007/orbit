@@ -8,7 +8,9 @@ const {sendDesktopMessage}=require('./desktop-ipc.cjs');
 const {terminalHasThread}=require('./terminal-thread.cjs');
 const {inactiveQueueError}=require('./resume-policy.cjs');
 const {placePet}=require('./geometry.cjs');
-const {createCursorReader}=require('./drag-cursor.cjs');
+const {createCursorReader,toScreenPoint}=require('./drag-cursor.cjs');
+const {createPetRunner}=require('./pet-runner.cjs');
+const {listenForSummon}=require('./summon-control.cjs');
 const {Store,PROVIDERS}=require('./store.cjs');const {Activity}=require('./activity.cjs');
 const {agyUsage,codexUsage}=require('./fresh-usage.cjs');
 app.setName('Orbit Agent Pet');app.commandLine.appendSwitch('class','agent-pet');
@@ -35,6 +37,20 @@ function movePet(x,y,dragMotion){
  const area=screen.getDisplayNearestPoint({x,y}).workArea;
  const bounds=win.getBounds();const height=Math.min(bounds.height,canvasHeight||bounds.height);const placed=placePet(x,y,area,bounds.width,height,preferences?.petScale||1);
  layout=placed;if(bounds.x!==placed.x||bounds.y!==placed.y)win.setPosition(placed.x,placed.y,false);win.webContents.send('layout',{...layout,...(dragMotion?{dragMotion}:{})});
+}
+let summonControl=null;
+const petRunner=createPetRunner({
+ getPosition(){const b=win.getBounds();return {x:b.x+layout.petX,y:b.y+layout.petY};},
+ move(x,y){if(win&&!win.isDestroyed())movePet(x,y);},
+ onStart({direction}){win.webContents.send('run-state',{walking:true,direction});},
+ onEnd({cancelled}){if(win&&!win.isDestroyed()){win.webContents.send('run-state',{walking:false});if(!cancelled)save();}}
+});
+function summonPet(point){
+ if(!win||win.isDestroyed()||drag)return;
+ const cursor=toScreenPoint(point,hyprMonitors,screen.getAllDisplays()),scale=preferences?.petScale||1;
+ const bounds=win.getBounds(),area=screen.getDisplayNearestPoint(cursor).workArea;
+ const destination=placePet(cursor.x-75*scale,cursor.y-64.5*scale,area,bounds.width,Math.min(bounds.height,canvasHeight||bounds.height),scale);
+ win.showInactive();petRunner.run({x:destination.x+destination.petX,y:destination.y+destination.petY});
 }
 let quotaRefresh=null;
 function refreshUsage(){
@@ -93,6 +109,7 @@ app.whenReady().then(()=>{
  win=new BrowserWindow({title:'Orbit Agent Pet',...sizes.open,height:workArea.height,x:placed.x,y:placed.y,frame:false,transparent:true,backgroundColor:'#00000000',hasShadow:false,resizable:true,maximizable:false,minimizable:false,skipTaskbar:true,alwaysOnTop:true,show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true}});
  win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});win.setAlwaysOnTop(true,'floating');win.on('page-title-updated',e=>e.preventDefault());win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
  hyprInput=createHyprInputPolicy(process.pid);
+ summonControl=listenForSummon(summonPet);
  win.loadFile(path.join(__dirname,'../renderer/index.html'));win.once('ready-to-show',()=>{startInputShape();win.showInactive();});
  win.setIgnoreMouseEvents(true,{forward:true});ignoring=true;execFile('hyprctl',['monitors','-j'],{timeout:1000},(err,out)=>{if(!err)try{hyprMonitors=JSON.parse(out);}catch{}});pointerTimer=setInterval(pointerPolicy,60);
  activity=new Activity(store,stateDir);activity.poll();refreshUsage();timer=setInterval(()=>{activity.poll();send();},1000);
@@ -105,6 +122,7 @@ ipcMain.on('expand',(_,open)=>{if(drag||!win)return;expanded=open;pointerPolicy(
 ipcMain.on('drag',(_,e)=>{
  if(!win||!['start','move','end'].includes(e.phase))return;
  if(e.phase==='start'){
+  petRunner.stop();
   if(!Number.isFinite(e.x)||!Number.isFinite(e.y))return;
   if(!inputShapeReady)win.setIgnoreMouseEvents(false);ignoring=false;const b=win.getBounds();
   const grabX=Number.isFinite(e.grab?.x)?e.grab.x:e.x-b.x-layout.petX,grabY=Number.isFinite(e.grab?.y)?e.grab.y:e.y-b.y-layout.petY;
@@ -165,7 +183,7 @@ ipcMain.handle('start-task',async(_,{provider,prompt,thread}={})=>{
   child.once('close',code=>{store.update({provider,session:selected.id,title:selected.name,workspace:cwd,status:code===0?'done':'error',time:Date.now(),activity:(code===0?output:errorText).trim().slice(-1000)||'Conversation finished'});send();});
  });
 });
-ipcMain.on('hide-pet',()=>win.hide());
+ipcMain.on('hide-pet',()=>{petRunner.stop();win.hide();});
 ipcMain.on('refresh-usage',refreshUsage);
 ipcMain.on('open-settings',showSettingsWindow);
 ipcMain.on('settings-initialize',(_,value)=>{if(!preferences)persistPreferences(value);else win.webContents.send('settings-changed',preferences);});
@@ -180,5 +198,5 @@ ipcMain.handle('pick-sprite-sheet',async event=>{
  return {sheet:require('node:url').pathToFileURL(destination).href,name:path.basename(source),frames:1,columns:1,fps:10};
 });
 ipcMain.on('settings-close' ,()=>settingsWin?.close());
-ipcMain.on('reset-position',()=>{const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
-ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());
+ipcMain.on('reset-position',()=>{petRunner.stop();const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
+ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{petRunner.stop();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());

@@ -140,6 +140,11 @@ function reportRegions(){
 }
 new ResizeObserver(reportRegions).observe($('shell'));requestAnimationFrame(reportRegions);
 
+window.orbit.onRun?.(state=>{
+ if(state.walking){if(state.direction)petDirection=state.direction;petWalking=true;closeMenus();if(open)expand(false);}
+ else if(!pointer)petWalking=false;
+ updatePetSprite();requestAnimationFrame(reportRegions);
+});
 window.orbit.onLayout(layout=>{
  if(pointer&&layout.dragMotion){const motion=layout.dragMotion;pointer.travelX=motion.x;pointer.travelY=motion.y;const direction=pointer.direction.update(motion.x,motion.time,motion.y);if(direction!==petDirection){petDirection=direction;if(petWalking)applySpriteDirection();}if(!petWalking&&motion.moved){pointer.moved=true;petWalking=true;updatePetSprite();}}
  document.body.style.setProperty('--pet-x',layout.petX+'px');document.body.style.setProperty('--pet-y',layout.petY+'px');document.body.classList.toggle('above',layout.above);requestAnimationFrame(reportRegions);

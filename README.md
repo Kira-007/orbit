@@ -42,6 +42,7 @@ Set `ORBIT_ELECTRON` to an alternative Electron executable. Set `ORBIT_CODEX_DES
 ## Use
 
 - Click the pet to open/close its toolbar; drag to move it.
+- **Super + Ctrl + Alt + P** makes the pet walk to the cursor position captured at the instant you press the shortcut. Moving your mouse afterward does not change its destination. Press again to choose a new destination; dragging cancels the automatic walk. This shortcut is installed by `install.py` and can be changed in your Hyprland Lua configuration. The pet must already be running.
 - Chat and notifications are separate views. Select a harness and thread before sending. Enter sends; Shift+Enter inserts a line break.
 - Click a task card to open Orbit’s composer with its harness and exact session selected. Completed/error cards are dismissed after that session loads. The × button dismisses any card. Notification clicks do not focus another application.
 - Completions and errors expire after 10 minutes by default (Settings → Recent tasks). Running/waiting cards disappear after 15 minutes without updates; idle/stale cards are cleared. Dismissal follows that task run, so a later run with the same title can notify again. Hovering the pet does not take keyboard focus.
