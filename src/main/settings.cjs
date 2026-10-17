@@ -8,7 +8,7 @@ function normalizeSettings(value={}){
  const legacy=normalizeSheets(value.spriteSheets),spritePets=[];const ids=new Set();
  for(const entry of (Array.isArray(value.spritePets)?value.spritePets:[]).slice(0,64)){
   if(!entry||typeof entry.id!=='string'||!/^[a-zA-Z0-9_-]{1,80}$/.test(entry.id)||ids.has(entry.id))continue;
-  ids.add(entry.id);spritePets.push({id:entry.id,name:String(entry.name||'My pet').trim().slice(0,60)||'My pet',facing:entry.facing==='left'?'left':'right',spriteSheets:normalizeSheets(entry.spriteSheets)});
+  ids.add(entry.id);spritePets.push({id:entry.id,name:String(entry.name||'My pet').trim().slice(0,60)||'My pet',facing:entry.facing==='left'?'left':'right',offsetX:Math.max(-100,Math.min(100,Number(entry.offsetX)||0)),offsetY:Math.max(-100,Math.min(100,Number(entry.offsetY)||0)),spriteSheets:normalizeSheets(entry.spriteSheets)});
  }
  if(!spritePets.length&&Object.keys(legacy).length)spritePets.push({id:'legacy',name:'My pet',facing:'right',spriteSheets:legacy});
  const active=spritePets.find(p=>p.id===value.activeSpritePet)||spritePets[0];const spriteSheets=active?.spriteSheets||{};

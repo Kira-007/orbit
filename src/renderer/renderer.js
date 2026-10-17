@@ -16,7 +16,7 @@ function visibleTasks(){const tasks=notificationFeed.update(data.sessions,{compl
 function dismissTask(session){notificationFeed.dismiss(session);saveNotifications();paint();requestAnimationFrame(reportRegions);}
 const $=id=>document.getElementById(id);
 const petSprite=new SpritePlayer($('pet-sprite'));let petAnimationState='idle',petWalking=false,petDirection=1;
-function currentSpriteConfig(){return settings.petMode==='sprite'?((petWalking?settings.spriteSheets?.walking:null)||settings.spriteSheets?.[petAnimationState]||settings.spriteSheets?.idle):null;}
+function currentSpriteConfig(){const config=settings.petMode==='sprite'?((petWalking?settings.spriteSheets?.walking:null)||settings.spriteSheets?.[petAnimationState]||settings.spriteSheets?.idle):null;const pet=settings.spritePets?.find(p=>p.id===settings.activeSpritePet);return config?{...config,offsetX:pet?.offsetX||0,offsetY:pet?.offsetY||0}:null;}
 function applySpriteDirection(config=currentSpriteConfig()){const pet=settings.spritePets?.find(p=>p.id===settings.activeSpritePet),original=(config?.facing||pet?.facing)==='left'?-1:1;const transform='scaleX('+(petDirection*original)+')';if($('pet-sprite').style.transform!==transform)$('pet-sprite').style.transform=transform;}
 function updatePetSprite(){const config=currentSpriteConfig();applySpriteDirection(config);$('pet').classList.toggle('custom-sprite',!!config);$('pet-sprite').hidden=!config;petSprite.set(config,settings.animations&&!matchMedia('(prefers-reduced-motion: reduce)').matches);}
 

@@ -44,3 +44,8 @@ test('animation offsets are bounded and preserved separately per state',()=>{
  assert.equal(p.spriteSheets.walking.offsetX,100);assert.equal(p.spriteSheets.walking.offsetY,-100);
  assert.equal(normalizeSettings(p).spriteSheets.idle.offsetX,24);
 });
+test('global pet offsets survive saving and apply independently of animation selection',()=>{
+ const p=normalizeSettings({activeSpritePet:'hornet',spritePets:[{id:'hornet',offsetX:25,offsetY:-15,spriteSheets:{}}]});
+ const saved=normalizeSettings(JSON.parse(JSON.stringify(p)));
+ assert.equal(saved.spritePets[0].offsetX,25);assert.equal(saved.spritePets[0].offsetY,-15);
+});
