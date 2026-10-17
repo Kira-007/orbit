@@ -12,6 +12,7 @@ const {createCursorReader,toScreenPoint}=require('./drag-cursor.cjs');
 const {createPetRunner}=require('./pet-runner.cjs');
 const {createFleaQueue}=require('./flea-queue.cjs');
 const {createFleaMarker}=require('./flea-marker.cjs');
+const {createRandomFleas}=require('./random-fleas.cjs');
 const {listenForSummon}=require('./summon-control.cjs');
 const {Store,PROVIDERS}=require('./store.cjs');const {Activity}=require('./activity.cjs');
 const {agyUsage,codexUsage}=require('./fresh-usage.cjs');
@@ -57,6 +58,12 @@ const fleaQueue=createFleaQueue({
   return{x:destination.x+destination.petX,y:destination.y+destination.petY};
  },
  run:point=>petRunner.run(point),stop:()=>petRunner.stop()
+});
+const randomFleas=createRandomFleas({
+ spawn:point=>fleaQueue.add(point),
+ canSpawn:()=>win&&!win.isDestroyed()&&win.isVisible()&&!drag&&!expanded&&fleaQueue.count===0,
+ getArea(){const b=win.getBounds();return screen.getDisplayNearestPoint({x:b.x+layout.petX,y:b.y+layout.petY}).workArea;},
+ getMargin:()=>({x:Math.max(40,75*(preferences?.petScale||1)),y:Math.max(40,64.5*(preferences?.petScale||1))})
 });
 function summonPet(point){
  if(!win||win.isDestroyed()||drag)return;
@@ -121,7 +128,7 @@ app.whenReady().then(()=>{
  win.setVisibleOnAllWorkspaces(true,{visibleOnFullScreen:true});win.setAlwaysOnTop(true,'floating');win.on('page-title-updated',e=>e.preventDefault());win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',e=>e.preventDefault());
  hyprInput=createHyprInputPolicy(process.pid);
  summonControl=listenForSummon(summonPet);
- win.loadFile(path.join(__dirname,'../renderer/index.html'));win.once('ready-to-show',()=>{startInputShape();win.showInactive();});
+ win.loadFile(path.join(__dirname,'../renderer/index.html'));win.once('ready-to-show',()=>{startInputShape();win.showInactive();randomFleas.start();});
  win.setIgnoreMouseEvents(true,{forward:true});ignoring=true;execFile('hyprctl',['monitors','-j'],{timeout:1000},(err,out)=>{if(!err)try{hyprMonitors=JSON.parse(out);}catch{}});pointerTimer=setInterval(pointerPolicy,60);
  activity=new Activity(store,stateDir);activity.poll();refreshUsage();timer=setInterval(()=>{activity.poll();send();},1000);
  const icon=nativeImage.createFromPath(path.join(__dirname,'../../assets/icons/tray.png'));if(!icon.isEmpty()){tray=new Tray(icon);tray.setToolTip('Orbit · your agent companion');tray.setContextMenu(Menu.buildFromTemplate([{label:'Show companion',click:()=>win.show()},{label:'Hide companion',click:()=>{fleaQueue.clear();win.hide();}},{type:'separator'},{label:'Quit Orbit',click:()=>app.quit()}]));tray.on('click',()=>{if(win.isVisible()){fleaQueue.clear();win.hide();}else win.show();});}
@@ -211,4 +218,4 @@ ipcMain.handle('pick-sprite-sheet',async event=>{
 });
 ipcMain.on('settings-close' ,()=>settingsWin?.close());
 ipcMain.on('reset-position',()=>{fleaQueue.clear();const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
-ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{fleaQueue.clear();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());
+ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{randomFleas.stop();fleaQueue.clear();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());
