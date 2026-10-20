@@ -179,7 +179,9 @@ class PetWindow(Gtk.ApplicationWindow):
                 self.toolbar.append(overlay)
             else:
                 self.toolbar.append(button)
-        self.toolbar.set_visible(False)
+        # Always laid out (so its real size is known); invisible and unclickable while collapsed.
+        self.toolbar.set_opacity(0)
+        self.toolbar.set_can_target(False)
         self.fixed.put(self.toolbar, 0, 0)
         # The toolbar rests as a small bar that shows the selected quota; it opens on click.
         # Drawn rather than resized, so the morph never triggers a relayout.
@@ -194,7 +196,8 @@ class PetWindow(Gtk.ApplicationWindow):
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['panel'], visible=False)
         self.panel.set_size_request(PANEL_W, -1)
         self.panel.set_overflow(Gtk.Overflow.HIDDEN)
-        self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vhomogeneous=False)
+        # No stack transition: the crossfade drew two views at once and the panel was measured mid-fade.
+        self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.NONE, vhomogeneous=False, hhomogeneous=True)
         self.cards = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.stack_expanded, self.front_key, self.last_cycle = False, None, 0
         wheel = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
@@ -332,14 +335,20 @@ class PetWindow(Gtk.ApplicationWindow):
         top, bottom = self.sprite.visible_bounds()
         above = self.above = self.pet_y > height - self.pet_y - ph
         offset = float(self._active_pet().get('offsetY') or 0)
-        bar_y = self.pet_y + top - offset - TOOLBAR_H if above else self.pet_y + bottom + offset
+        # Use the toolbar's real size so the drawn background and the icons line up exactly.
+        tw = max(TOOLBAR_W, self.toolbar.measure(Gtk.Orientation.HORIZONTAL, -1)[1])
+        th = max(TOOLBAR_H, self.toolbar.measure(Gtk.Orientation.VERTICAL, tw)[1])
+        if self.mini_usage.get_size_request() != (tw, th):
+            self.mini_usage.set_size_request(tw, th)
+            GLib.idle_add(self.layout)
+        bar_y = round(self.pet_y + top - offset - th if above else self.pet_y + bottom + offset)
         center = self.pet_x + pw / 2
-        self._place(self.toolbar, center - TOOLBAR_W / 2, bar_y)
+        self._place(self.toolbar, round(center - tw / 2), bar_y)
         # The resting bar morphs into the toolbar: morph 0 is the 32x6 bar, 1 the full toolbar.
-        self._place(self.mini_usage, center - TOOLBAR_W / 2, bar_y)
+        self._place(self.mini_usage, round(center - tw / 2), bar_y)
         if self.panel.get_visible():
             # Size the scrolled views to their content, capped at the room on that side of the pet.
-            room = (bar_y - GAP - 8) if above else (height - bar_y - TOOLBAR_H - GAP - 8)
+            room = (bar_y - GAP - 8) if above else (height - bar_y - th - GAP - 8)
             for scroll in (self.cards_scroll, self.usage_scroll):
                 content = scroll.get_child().measure(Gtk.Orientation.VERTICAL, PANEL_W - px(24))[1]
                 # Limits are shown in full; they scroll only when the screen has no room.
@@ -347,7 +356,7 @@ class PetWindow(Gtk.ApplicationWindow):
                 scroll.set_min_content_height(max(40, min(content, cap)))
             panel_h = self.panel.measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
             panel_x = max(8, min(center - PANEL_W / 2, width - PANEL_W - 8))
-            panel_y = bar_y - GAP - panel_h if above else bar_y + TOOLBAR_H + GAP
+            panel_y = bar_y - GAP - panel_h if above else bar_y + th + GAP
             self.panel_height = panel_h
             self._place(self.panel, panel_x, max(0, panel_y))
         for flea in self.fleas:
@@ -509,7 +518,7 @@ class PetWindow(Gtk.ApplicationWindow):
         # while the icons fade in over the last 40% when opening, or out over the first 35% when closing.
         start = self.morph
         target = 1.0 if show else 0.0
-        self.toolbar.set_visible(True)
+        self.toolbar.set_can_target(show)
 
         def step(t):
             self.morph = start + (target - start) * t
@@ -517,7 +526,6 @@ class PetWindow(Gtk.ApplicationWindow):
             self.mini_usage.queue_draw()
 
         def done():
-            self.toolbar.set_visible(show)
             self.update_input_region(True)
         self._tween('morph', .3 if show else .28, step, done, ease=EASE_IN_OUT)
 
@@ -600,9 +608,14 @@ class PetWindow(Gtk.ApplicationWindow):
             up = getattr(self, 'above', False)
             self._reveal(self.panel, bool(view), -px(10) if up else px(10), .96, origin_bottom=up)
         if view:
+            if was and was != view:
+                self._tween('switch', .14, self.stack.set_opacity)
             self.stack.set_visible_child_name(view)
             self.toolbar_pinned = True
             if view == 'chat':
+                side = Gtk.PositionType.TOP if getattr(self, 'above', False) else Gtk.PositionType.BOTTOM
+                for pill in (self.harness, self.thread):
+                    pill.get_popover().set_position(side)
                 self.load_threads()
                 LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.ON_DEMAND)
                 self.prompt.grab_focus()
