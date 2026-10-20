@@ -376,6 +376,9 @@ class PetWindow(Gtk.ApplicationWindow):
         """Position a Fixed child, composing any running animation (offset and scale)."""
         self.places[widget] = (x, y)
         dy, scale, (ox, oy) = self.motion.get(widget, (0, 1, (0, 0)))
+        # Snap to device pixels so content isn't resampled at a different sub-pixel offset each move.
+        device = self.get_surface().get_scale() if self.get_surface() else 1
+        x, y = round(x * device) / device, round((y + dy) * device) / device - dy
         transform = Gsk.Transform.new().translate(Graphene.Point().init(x, y + dy))
         if scale != 1:
             transform = transform.translate(Graphene.Point().init(ox, oy)).scale(scale, scale).translate(Graphene.Point().init(-ox, -oy))

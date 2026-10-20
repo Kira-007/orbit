@@ -97,17 +97,38 @@ class SpriteView(Gtk.DrawingArea):
             return
         surfaces, fw, fh, _, _ = self.loaded
         frame = int((time.monotonic() - self.started) * self.config['fps']) % len(surfaces) if self.animate else 0
-        ratio = min(width / fw, height / fh)
-        dw, dh = fw * ratio, fh * ratio
-        ctx.translate((width - dw) / 2 + float(self.config.get('offsetX') or 0) * ratio, (height - dh) / 2)
+        # Work in device pixels: frames are resampled once to their exact on-screen size and
+        # drawn at whole-pixel offsets, so nothing shimmers between frames at fractional scales.
+        native = self.get_native()
+        scale = native.get_surface().get_scale() if native and native.get_surface() else 1
+        ratio = min(width / fw, height / fh) * scale
+        dw, dh = max(1, round(fw * ratio)), max(1, round(fh * ratio))
+        x = round((width * scale - dw) / 2 + float(self.config.get('offsetX') or 0) * ratio)
+        y = round((height * scale - dh) / 2)
+        image = self._scaled(surfaces, frame, dw, dh)
+        ctx.scale(1 / scale, 1 / scale)
         if self.flip:
-            ctx.translate(dw, 0)
+            ctx.translate(2 * x + dw, 0)
             ctx.scale(-1, 1)
-        ctx.scale(ratio, ratio)
-        ctx.set_source_surface(surfaces[frame], 0, 0)
-        ctx.get_source().set_filter(cairo.FILTER_GOOD)
+        ctx.set_source_surface(image, x, y)
+        ctx.get_source().set_filter(cairo.FILTER_NEAREST)
         ctx.paint()
 
+    def _scaled(self, surfaces, frame, dw, dh):
+        key = (id(surfaces), dw, dh)
+        if getattr(self, '_scaled_key', None) != key:
+            self._scaled_key, self._scaled_frames = key, {}
+        image = self._scaled_frames.get(frame)
+        if image is None:
+            source = surfaces[frame]
+            image = cairo.ImageSurface(cairo.FORMAT_ARGB32, dw, dh)
+            ctx = cairo.Context(image)
+            ctx.scale(dw / source.get_width(), dh / source.get_height())
+            ctx.set_source_surface(source, 0, 0)
+            ctx.get_source().set_filter(cairo.FILTER_BEST)
+            ctx.paint()
+            self._scaled_frames[frame] = image
+        return image
 
 def _rgb(color):
     return tuple(int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
