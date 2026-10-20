@@ -1,9 +1,11 @@
 window.orbit, window.orbit > * { background: none; box-shadow: none; }
 .orbit * { font-family: Inter, sans-serif; color: #e1eeeb; font-size: 13px; }
-.toolbar { background: #242022; border-radius: 24px; padding: 0 6px; min-height: 40px; }
-.toolbar button { background: none; border: none; box-shadow: none; min-width: 34px; min-height: 30px; border-radius: 16px; }
+.toolbar { background: #242022; border-radius: 16px; padding: 0 4px; min-height: 32px; }
+.toolbar button { background: none; border: none; box-shadow: none; min-width: 26px; min-height: 24px; padding: 0; border-radius: 12px; }
+.toolbar button image { -gtk-icon-size: 14px; }
+.toolbar button { margin: 0; }
 .toolbar button:hover { background: #ffffff14; }
-.toolbar .badge { background: #f18c95; color: #111; border-radius: 8px; font-size: 9px; padding: 0 4px; }
+.toolbar .badge { background: #f18c95; color: #111; border-radius: 6px; font-size: 8px; padding: 0 3px; min-height: 0; }
 .usage-strip { min-height: 3px; border-radius: 2px; }
 .panel { background: transparent; }
 .card { border-radius: 24px; padding: 12px 16px; margin-bottom: 8px; background: #505050; }
@@ -25,3 +27,7 @@ window.orbit, window.orbit > * { background: none; box-shadow: none; }
 .usage-strip.claude { background: #ee9877; }
 .usage-strip.antigravity { background: #8bdba4; }
 .stack-toggle { background: #252525; border-radius: 12px; padding: 4px 10px; margin-bottom: 8px; font-size: 10px; }
+.mini-usage { background: #242022cc; border-radius: 2px; min-height: 4px; }
+.mini-usage .usage-strip { min-height: 4px; border-radius: 2px; }
+window.orbit .toolbar button, window.orbit .toolbar button.image-button { min-width: 26px; min-height: 24px; padding: 2px; margin: 0; border: none; outline: none; }
+window.orbit .toolbar { padding: 2px 6px; min-height: 0; }

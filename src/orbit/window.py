@@ -28,7 +28,8 @@ from .tasks import open_threads, start_task  # noqa: E402
 from .usage import agy_usage, claude_usage, codex_usage  # noqa: E402
 
 NAMES = {'claude': 'Claude Code', 'codex-cli': 'Codex CLI', 'codex-desktop': 'Codex Desktop', 'antigravity': 'AGY CLI'}
-PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 360, 124, 40, 6
+PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 360, 100, 32, 6
+MINI_W = 56
 USAGE_COLORS = {'codex': '#eeeeee', 'claude': '#ee9877', 'antigravity': '#8bdba4'}
 
 
@@ -99,7 +100,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self._hoverable(self.sprite)
 
     def _build_toolbar(self):
-        self.toolbar = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['toolbar'], valign=Gtk.Align.CENTER)
+        self.toolbar = Gtk.Overlay(css_classes=['toolbar'])
         self.toolbar.set_size_request(TOOLBAR_W, TOOLBAR_H)
         row = Gtk.Box(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER, vexpand=True)
         for icon, tip, view in (('document-edit-symbolic', 'Message a conversation', 'chat'),
@@ -114,11 +115,18 @@ class PetWindow(Gtk.ApplicationWindow):
                 row.append(overlay)
             else:
                 row.append(button)
-        self.usage_strip = Gtk.Box(css_classes=['usage-strip'], halign=Gtk.Align.START, margin_start=14, margin_bottom=4, visible=False)
-        self.toolbar.append(row)
-        self.toolbar.append(self.usage_strip)
+        self.usage_strip = Gtk.Box(css_classes=['usage-strip'], halign=Gtk.Align.START, valign=Gtk.Align.END,
+                                   margin_start=12, margin_bottom=2, visible=False, can_target=False)
+        self.toolbar.set_child(row)
+        self.toolbar.add_overlay(self.usage_strip)
         self.fixed.put(self.toolbar, 0, 0)
         self._hoverable(self.toolbar)
+        # Shown in place of the toolbar while it is hidden, when a usage limit is selected.
+        self.mini_usage = Gtk.Box(css_classes=['mini-usage'], can_target=False, visible=False)
+        self.mini_usage.set_size_request(MINI_W, 4)
+        self.mini_fill = Gtk.Box(css_classes=['usage-strip'], halign=Gtk.Align.START)
+        self.mini_usage.append(self.mini_fill)
+        self.fixed.put(self.mini_usage, 0, 0)
 
     def _build_panel(self):
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['panel'], visible=False)
@@ -227,6 +235,7 @@ class PetWindow(Gtk.ApplicationWindow):
         bar_y = self.pet_y + top - offset - TOOLBAR_H if above else self.pet_y + bottom + offset
         center = self.pet_x + pw / 2
         self.fixed.move(self.toolbar, center - TOOLBAR_W / 2, bar_y)
+        self.fixed.move(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - 4 if above else 4))
         if self.panel.get_visible():
             panel_h = self.panel.measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
             panel_x = max(8, min(center - PANEL_W / 2, width - PANEL_W - 8))
@@ -264,8 +273,8 @@ class PetWindow(Gtk.ApplicationWindow):
 
     # ---- pet interaction ------------------------------------------------
     def _drag_begin(self, gesture, x, y):
-        pw, ph = self.pet_size()
-        if not (self.pet_x <= x < self.pet_x + pw and self.pet_y <= y < self.pet_y + ph):
+        # Only start on the sprite itself; the toolbar can overlap the sprite's transparent margin.
+        if self.fixed.pick(x, y, Gtk.PickFlags.DEFAULT) is not self.sprite:
             gesture.set_state(Gtk.EventSequenceState.DENIED)
             self.drag_origin = None
             return
@@ -328,6 +337,7 @@ class PetWindow(Gtk.ApplicationWindow):
 
     def update_controls(self):
         self.toolbar.set_visible(bool(self.toolbar_pinned or self.hovering or self.panel_view) and not self.dragging)
+        self.mini_usage.set_visible(bool(self.settings['usageBar']) and not self.toolbar.get_visible() and not self.dragging)
         self.layout()
 
     def apply_settings(self, value):
@@ -480,11 +490,14 @@ class PetWindow(Gtk.ApplicationWindow):
         quota = bar and next((w for w in (self.store.usage.get(bar['provider']) or {}).get('windows', []) if w['label'] == bar['label']), None)
         valid = quota and (not quota.get('reset') or quota['reset'] > now_ms())
         self.usage_strip.set_visible(bool(bar))
+        self.mini_usage.set_visible(bool(bar) and not self.toolbar.get_visible() and not self.dragging)
         if bar:
             value = max(0, min(100, quota['remaining'])) if valid else 0
-            self.usage_strip.set_size_request(round((TOOLBAR_W - 28) * value / 100), 3)
-            for provider in USAGE_COLORS:
-                (self.usage_strip.add_css_class if provider == bar['provider'] else self.usage_strip.remove_css_class)(provider)
+            self.usage_strip.set_size_request(round((TOOLBAR_W - 24) * value / 100), 3)
+            self.mini_fill.set_size_request(round(MINI_W * value / 100), 4)
+            for strip in (self.usage_strip, self.mini_fill):
+                for provider in USAGE_COLORS:
+                    (strip.add_css_class if provider == bar['provider'] else strip.remove_css_class)(provider)
             self.toolbar.set_tooltip_text(f"{bar['provider']} · {bar['label']} · {value}% remaining" if valid else 'Selected limit unavailable')
 
     def _paint_usage(self):

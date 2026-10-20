@@ -37,7 +37,7 @@ class OrbitApp(Gtk.Application):
         Gtk.Application.do_startup(self)
         css = Gtk.CssProvider()
         css.load_from_path(str(ROOT / 'src/orbit/style.css'))
-        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
         self.hold()
         self._listen()
 
