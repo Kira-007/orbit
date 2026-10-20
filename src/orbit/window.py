@@ -29,7 +29,8 @@ from .tasks import open_threads, start_task  # noqa: E402
 from .usage import agy_usage, claude_usage, codex_usage  # noqa: E402
 
 NAMES = {'claude': 'Claude Code', 'codex-cli': 'Codex CLI', 'codex-desktop': 'Codex Desktop', 'antigravity': 'AGY CLI'}
-PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 360, 100, 32, 6
+PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 430, 132, 40, 8
+ICONS = ROOT / 'assets/icons/ui'
 MINI_W, MINI_H = 32, 6
 USAGE_COLORS = {'codex': '#eeeeee', 'claude': '#ee9877', 'antigravity': '#8bdba4'}
 
@@ -47,12 +48,8 @@ def _age(t):
     return 'just now' if sec < 60 else f'{sec // 60}m ago' if sec < 3600 else f'{sec // 3600}h ago'
 
 
-def _label_factory(chars):
-    """Drop-down rows that ellipsize long names so the composer keeps the panel width."""
-    factory = Gtk.SignalListItemFactory()
-    factory.connect('setup', lambda _f, item: item.set_child(Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, max_width_chars=chars)))
-    factory.connect('bind', lambda _f, item: item.get_child().set_label(item.get_item().get_string()))
-    return factory
+def _card_css(task):
+    return {'claude': 'claude', 'antigravity': 'agy', 'codex-desktop': 'codex-desktop'}.get(task['provider'], 'codex-cli')
 
 
 class PetWindow(Gtk.ApplicationWindow):
@@ -66,7 +63,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self.pet_x = self.pet_y = 0.0
         self.direction, self.walking, self.dragging = 1, False, False
         self.toolbar_pinned = self.settings['controls']
-        self.hovering, self.hover_timer, self.panel_view = False, None, None
+        self.panel_view = None
         self.fleas, self.current_flea, self.run = [], None, None
         self.selected_thread, self.threads = '', []
 
@@ -114,32 +111,24 @@ class PetWindow(Gtk.ApplicationWindow):
         menu = Gtk.GestureClick(button=3)
         menu.connect('pressed', self._context_menu)
         self.sprite.add_controller(menu)
-        self._hoverable(self.sprite)
 
     def _build_toolbar(self):
-        self.toolbar = Gtk.Overlay(css_classes=['toolbar'])
+        self.toolbar = Gtk.Box(css_classes=['toolbar'], halign=Gtk.Align.CENTER, homogeneous=True)
         self.toolbar.set_size_request(TOOLBAR_W, TOOLBAR_H)
-        row = Gtk.Box(halign=Gtk.Align.CENTER, valign=Gtk.Align.CENTER, vexpand=True)
-        for icon, tip, view in (('document-edit-symbolic', 'Message a conversation', 'chat'),
-                                ('power-profile-performance-symbolic', 'Usage remaining', 'usage'),
-                                ('mail-unread-symbolic', 'Task notifications', 'cards')):
-            button = Gtk.Button(icon_name=icon, tooltip_text=tip)
+        for icon, tip, view in (('chat', 'Message a conversation', 'chat'), ('usage', 'Usage remaining', 'usage'),
+                                ('inbox', 'Task notifications', 'cards')):
+            button = Gtk.Button(child=Gtk.Image.new_from_file(str(ICONS / f'{icon}.svg')), tooltip_text=tip)
             button.connect('clicked', lambda _b, v=view: self._toggle_view(v))
             if view == 'cards':
                 overlay = Gtk.Overlay(child=button)
                 self.badge = Gtk.Label(css_classes=['badge'], halign=Gtk.Align.END, valign=Gtk.Align.START, visible=False, can_target=False)
                 overlay.add_overlay(self.badge)
-                row.append(overlay)
+                self.toolbar.append(overlay)
             else:
-                row.append(button)
-        self.usage_strip = Gtk.Box(css_classes=['usage-strip'], halign=Gtk.Align.START, valign=Gtk.Align.END,
-                                   margin_start=12, margin_bottom=2, visible=False, can_target=False)
-        self.toolbar.set_child(row)
-        self.toolbar.add_overlay(self.usage_strip)
+                self.toolbar.append(button)
         self.fixed.put(self.toolbar, 0, 0)
-        self._hoverable(self.toolbar)
-        # Shown in place of the toolbar while it is hidden, when a usage limit is selected.
-        self.mini_usage = Gtk.Box(css_classes=['mini-usage'], can_target=False, visible=False)
+        # The toolbar rests as a small bar that shows the selected quota; it opens on click.
+        self.mini_usage = Gtk.Box(css_classes=['mini-usage'], can_target=False)
         self.mini_usage.set_size_request(MINI_W, MINI_H)
         self.mini_fill = Gtk.Box(css_classes=['usage-strip'], halign=Gtk.Align.START)
         self.mini_usage.append(self.mini_fill)
@@ -167,33 +156,69 @@ class PetWindow(Gtk.ApplicationWindow):
         self.fixed.put(self.panel, 0, 0)
 
     def _build_composer(self):
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=['sheet', 'composer'])
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10, css_classes=['composer'])
         self.prompt = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False)
-        self.prompt.set_size_request(-1, 56)
         keys = Gtk.EventControllerKey()
         keys.connect('key-pressed', self._prompt_key)
         self.prompt.add_controller(keys)
-        box.append(self.prompt)
+        placeholder = Gtk.Label(label='Write a message…', css_classes=['placeholder'], xalign=0, yalign=0,
+                                halign=Gtk.Align.START, valign=Gtk.Align.START, can_target=False)
+        self.prompt.get_buffer().connect('changed', lambda b: placeholder.set_visible(b.get_char_count() == 0))
+        scroll = Gtk.ScrolledWindow(child=self.prompt, hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_height=86, max_content_height=120)
+        field = Gtk.Overlay(child=scroll)
+        field.add_overlay(placeholder)
+        box.append(field)
         row = Gtk.Box(spacing=6)
         self.harness_ids = list(NAMES)
-        self.harness = Gtk.DropDown(model=Gtk.StringList.new([NAMES[h] for h in self.harness_ids]), factory=_label_factory(12))
-        self.harness.set_selected(self.harness_ids.index(self.settings['harness']))
-        self.harness.connect('notify::selected', lambda *_: self.load_threads())
-        self.thread_list = Gtk.StringList()
-        self.thread = Gtk.DropDown(model=self.thread_list, hexpand=True, factory=_label_factory(16))
-        self.thread.connect('notify::selected', self._thread_selected)
-        self.send = Gtk.Button(icon_name='go-up-symbolic', tooltip_text='Send message (Enter; Shift+Enter for a new line)')
+        self.harness_index = self.harness_ids.index(self.settings['harness'])
+        self.harness = self._pill(False)
+        self.thread = self._pill(True)
+        self.send = Gtk.Button(child=Gtk.Image.new_from_file(str(ICONS / 'send.svg')), css_classes=['send'],
+                               tooltip_text='Send message (Enter; Shift+Enter for a new line)', valign=Gtk.Align.CENTER)
         self.send.connect('clicked', lambda *_: self.submit())
         for widget in (self.harness, self.thread, self.send):
             row.append(widget)
         box.append(row)
+        self._set_harness_label()
         return box
 
-    def _hoverable(self, widget):
-        motion = Gtk.EventControllerMotion()
-        motion.connect('enter', lambda *_: self._hover(True))
-        motion.connect('leave', lambda *_: self._hover(False))
-        widget.add_controller(motion)
+    def _pill(self, expand):
+        """A rounded picker: a button whose popover lists choices, like the Electron composer."""
+        label = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, hexpand=True, max_width_chars=1 if expand else -1)
+        button = Gtk.MenuButton(css_classes=['pill'], hexpand=expand, always_show_arrow=False)
+        inner = Gtk.Box(spacing=4)
+        inner.append(label)
+        inner.append(Gtk.Label(label='▾'))
+        button.set_child(inner)
+        button.label = label
+        button.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['pill-menu'])
+        popover = Gtk.Popover(child=Gtk.ScrolledWindow(child=button.list, hscrollbar_policy=Gtk.PolicyType.NEVER,
+                                                       propagate_natural_height=True, max_content_height=170),
+                              has_arrow=False, css_classes=['pill-popover'])
+        popover.set_size_request(300 if expand else 170, -1)
+        button.set_popover(popover)
+        return button
+
+    def _fill_pill(self, pill, names, on_pick, selected=None, css=None):
+        while child := pill.list.get_first_child():
+            pill.list.remove(child)
+        for index, name in enumerate(names):
+            item = Gtk.Button(label=name, css_classes=['pill-item'] + (['selected'] if index == selected else []) + ([css[index]] if css else []))
+            item.get_child().set_xalign(0)
+            item.get_child().set_ellipsize(Pango.EllipsizeMode.END)
+            item.connect('clicked', lambda _b, i=index: (pill.popdown(), on_pick(i)))
+            pill.list.append(item)
+
+    def _set_harness_label(self):
+        provider = self._provider()
+        self.harness.label.set_label(NAMES[provider])
+        self._fill_pill(self.harness, [NAMES[h] for h in self.harness_ids], self._pick_harness, self.harness_index,
+                        css=['h-' + h for h in self.harness_ids])
+
+    def _pick_harness(self, index):
+        self.harness_index = index
+        self._set_harness_label()
+        self.load_threads()
 
     # ---- geometry ------------------------------------------------------
     def _monitor(self):
@@ -254,13 +279,13 @@ class PetWindow(Gtk.ApplicationWindow):
         bar_y = self.pet_y + top - offset - TOOLBAR_H if above else self.pet_y + bottom + offset
         center = self.pet_x + pw / 2
         self.fixed.move(self.toolbar, center - TOOLBAR_W / 2, bar_y)
-        self.fixed.move(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - MINI_H if above else 2))
+        self.fixed.move(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - MINI_H if above else 4))
         if self.panel.get_visible():
             # Size the scrolled views to their content, capped at the room on that side of the pet.
             room = (bar_y - GAP - 8) if above else (height - bar_y - TOOLBAR_H - GAP - 8)
             for scroll in (self.cards_scroll, self.usage_scroll):
                 content = scroll.get_child().measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
-                scroll.set_min_content_height(max(40, min(content, PANEL_H, room - 50)))
+                scroll.set_min_content_height(max(40, min(content, PANEL_H, room - 40)))
             panel_h = self.panel.measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
             panel_x = max(8, min(center - PANEL_W / 2, width - PANEL_W - 8))
             panel_y = bar_y - GAP - panel_h if above else bar_y + TOOLBAR_H + GAP
@@ -345,23 +370,9 @@ class PetWindow(Gtk.ApplicationWindow):
         popover.set_pointing_to(rect)
         popover.popup()
 
-    def _hover(self, inside):
-        if self.hover_timer:
-            GLib.source_remove(self.hover_timer)
-            self.hover_timer = None
-        if inside:
-            self.hovering = True
-            self.update_controls()
-        else:
-            def leave():
-                self.hover_timer, self.hovering = None, False
-                self.update_controls()
-                return False
-            self.hover_timer = GLib.timeout_add(self.settings['hoverDelay'], leave)
-
     def update_controls(self):
-        self.toolbar.set_visible(bool(self.toolbar_pinned or self.hovering or self.panel_view) and not self.dragging)
-        self.mini_usage.set_visible(bool(self.settings['usageBar']) and not self.toolbar.get_visible() and not self.dragging)
+        self.toolbar.set_visible(bool(self.toolbar_pinned or self.panel_view) and not self.dragging)
+        self.mini_usage.set_visible(not self.toolbar.get_visible() and not self.dragging)
         self.layout()
 
     def apply_settings(self, value):
@@ -483,27 +494,31 @@ class PetWindow(Gtk.ApplicationWindow):
             self.cards.remove(child)
         if not tasks:
             self.cards.append(Gtk.Label(label='No tasks yet', css_classes=['empty']))
-        if not self.stack_expanded and len(tasks) > 1:
-            more = Gtk.Button(label=f'Show all {len(tasks)}  ·  scroll to cycle', css_classes=['stack-toggle'], halign=Gtk.Align.END)
-            more.connect('clicked', lambda *_: (setattr(self, 'stack_expanded', True), self._force_paint()))
-            self.cards.append(more)
-        for task in tasks if self.stack_expanded else tasks[:1]:
-            css = {'claude': 'claude', 'antigravity': 'agy'}.get(task['provider'], 'codex')
-            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['card', css], spacing=4)
-            top = Gtk.Box(spacing=6)
-            title = Gtk.Label(label=task['title'], css_classes=['card-title'], wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR, xalign=0, hexpand=True)
-            state = Gtk.Label(label='status stale' if task['status'] == 'unknown' else task['status'], css_classes=['state'], valign=Gtk.Align.START)
-            dismiss = Gtk.Button(label='×', css_classes=['dismiss'], valign=Gtk.Align.START, tooltip_text='Dismiss')
-            dismiss.connect('clicked', lambda _b, t=task: (self.feed.dismiss(t), self._force_paint()))
-            for widget in (title, state, dismiss):
-                top.append(widget)
-            card.append(top)
-            card.append(Gtk.Label(label=f"{NAMES[task['provider']]} · {_age(task['time'])} · {task['activity']}", css_classes=['meta'],
-                                  xalign=0, ellipsize=Pango.EllipsizeMode.END, tooltip_text=task['workspace']))
-            click = Gtk.GestureClick()
-            click.connect('released', lambda *_a, t=task: self.open_task_chat(t))
-            card.add_controller(click)
-            self.cards.append(card)
+            return
+        shown = tasks if self.stack_expanded else tasks[:1]
+        for task in shown:
+            self.cards.append(self._card(task))
+        if not self.stack_expanded:
+            # Cards behind the front one peek out underneath it, in their provider colours.
+            for depth, task in enumerate(tasks[1:3], 1):
+                self.cards.append(Gtk.Box(css_classes=['peek', f'peek{depth}', _card_css(task)], can_target=False))
+
+    def _card(self, task):
+        card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['card', _card_css(task)], spacing=2)
+        top = Gtk.Box(spacing=8, halign=Gtk.Align.END)
+        top.append(Gtk.Label(label='STATUS STALE' if task['status'] == 'unknown' else task['status'].upper(), css_classes=['state']))
+        dismiss = Gtk.Button(label='×', css_classes=['dismiss'], tooltip_text='Dismiss ' + task['title'])
+        dismiss.connect('clicked', lambda _b, t=task: (self.feed.dismiss(t), self._force_paint()))
+        top.append(dismiss)
+        card.append(top)
+        card.append(Gtk.Label(label=task['title'], css_classes=['card-title'], wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR, xalign=0))
+        card.append(Gtk.Label(label=task['activity'] or 'Working on task', css_classes=['task-activity'], wrap=True,
+                              wrap_mode=Pango.WrapMode.WORD_CHAR, xalign=0, lines=4, ellipsize=Pango.EllipsizeMode.END))
+        card.set_tooltip_text(task['workspace'] or None)
+        click = Gtk.GestureClick()
+        click.connect('released', lambda *_a, t=task: self.open_task_chat(t))
+        card.add_controller(click)
+        return card
 
     def _force_paint(self):
         self._cards_signature = None
@@ -513,16 +528,11 @@ class PetWindow(Gtk.ApplicationWindow):
         bar = self.settings['usageBar']
         quota = bar and next((w for w in (self.store.usage.get(bar['provider']) or {}).get('windows', []) if w['label'] == bar['label']), None)
         valid = quota and (not quota.get('reset') or quota['reset'] > now_ms())
-        self.usage_strip.set_visible(bool(bar))
-        self.mini_usage.set_visible(bool(bar) and not self.toolbar.get_visible() and not self.dragging)
-        if bar:
-            value = max(0, min(100, quota['remaining'])) if valid else 0
-            self.usage_strip.set_size_request(round((TOOLBAR_W - 24) * value / 100), 3)
-            self.mini_fill.set_size_request(round(MINI_W * value / 100), MINI_H)
-            for strip in (self.usage_strip, self.mini_fill):
-                for provider in USAGE_COLORS:
-                    (strip.add_css_class if provider == bar['provider'] else strip.remove_css_class)(provider)
-            self.toolbar.set_tooltip_text(f"{bar['provider']} · {bar['label']} · {value}% remaining" if valid else 'Selected limit unavailable')
+        value = max(0, min(100, quota['remaining'])) if valid else 0
+        self.mini_fill.set_visible(bool(bar))
+        self.mini_fill.set_size_request(round(MINI_W * value / 100), MINI_H)
+        for provider in USAGE_COLORS:
+            (self.mini_fill.add_css_class if bar and provider == bar['provider'] else self.mini_fill.remove_css_class)(provider)
 
     def _paint_usage(self):
         signature = json.dumps([self.store.usage, self.store.usage_status, self.settings['usageBar']])
@@ -532,22 +542,35 @@ class PetWindow(Gtk.ApplicationWindow):
         while child := self.usage_box.get_first_child():
             self.usage_box.remove(child)
         for key, name, css in (('claude', 'Claude', 'claude'), ('codex', 'Codex', 'codex'), ('antigravity', 'AGY', 'agy')):
-            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, css_classes=['usage-card', css])
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['usage-card', css])
             status = self.store.usage_status.get(key)
-            heading = name + {'refreshing': '  ↻', 'failed': '  !'}.get(status, '')
-            card.append(Gtk.Label(label=heading, xalign=0, css_classes=['usage-name']))
+            heading = Gtk.Box()
+            heading.append(Gtk.Label(label=name, xalign=0, hexpand=True, css_classes=['usage-name']))
+            if status in ('refreshing', 'failed'):
+                heading.append(Gtk.Label(label='↻' if status == 'refreshing' else '!', css_classes=['usage-indicator'],
+                                         tooltip_text='Refreshing quota' if status == 'refreshing' else 'Refresh failed; showing previous values'))
+            card.append(heading)
             snapshot = self.store.usage.get(key)
             if not snapshot:
-                card.append(Gtk.Label(label='Loading…' if status == 'refreshing' else 'Unavailable', xalign=0))
+                card.append(Gtk.Label(label='Loading…' if status == 'refreshing' else 'Unavailable', xalign=0, css_classes=['usage-note']))
             for window in (snapshot or {}).get('windows', []):
                 expired = window.get('reset') and window['reset'] <= now_ms()
-                row = Gtk.Box(spacing=6)
-                row.append(Gtk.Label(label=_usage_label(window['label']), xalign=0, hexpand=True))
                 selected = self.settings['usageBar'] == {'provider': key, 'label': window['label']}
-                eye = Gtk.ToggleButton(icon_name='view-reveal-symbolic', active=selected, tooltip_text='Show on collapsed bar')
-                eye.connect('toggled', lambda b, k=key, l=window['label']: self.select_usage_bar(k, l, b.get_active()))
+                row = Gtk.Box(spacing=4, css_classes=['usage-row'])
+                row.append(Gtk.Label(label=_usage_label(window['label']), xalign=0, hexpand=True))
+                eye = Gtk.Button(child=Gtk.Image.new_from_file(str(ICONS / ('eye-on.svg' if selected else 'eye.svg'))),
+                                 css_classes=['usage-eye'] + (['selected'] if selected else []),
+                                 tooltip_text='Remove from collapsed bar' if selected else 'Show on collapsed bar')
+                eye.set_opacity(1 if selected else 0)
+                eye.connect('clicked', lambda _b, k=key, l=window['label'], on=selected: self.select_usage_bar(k, l, not on))
+                hover = Gtk.EventControllerMotion()
+                hover.connect('enter', lambda *_a, e=eye: e.set_opacity(1))
+                hover.connect('leave', lambda *_a, e=eye, on=selected: e.set_opacity(1 if on else 0))
+                row.add_controller(hover)
                 row.append(eye)
-                row.append(Gtk.Label(label='—' if expired else f"{window['remaining']}%"))
+                row.append(Gtk.Label(label='—' if expired else f"{window['remaining']}%", css_classes=['usage-value'], xalign=1))
+                if window.get('reset'):
+                    row.set_tooltip_text('Resets ' + time.strftime('%a %H:%M', time.localtime(window['reset'] / 1000)))
                 card.append(row)
                 card.append(Gtk.ProgressBar(fraction=0 if expired else window['remaining'] / 100))
             self.usage_box.append(card)
@@ -587,13 +610,14 @@ class PetWindow(Gtk.ApplicationWindow):
 
     # ---- composer ------------------------------------------------------------
     def _provider(self):
-        return self.harness_ids[self.harness.get_selected()]
+        return self.harness_ids[self.harness_index]
 
     def load_threads(self, preferred=None):
         provider = self._provider()
         self.thread_request = request = object()
         self.send.set_sensitive(False)
-        self.thread_list.splice(0, self.thread_list.get_n_items(), ['Loading…'])
+        self.thread.label.set_label('Loading…')
+        self.thread.set_sensitive(False)
 
         def work():
             threads = open_threads(provider, self.store)
@@ -603,19 +627,21 @@ class PetWindow(Gtk.ApplicationWindow):
             if request is not self.thread_request:
                 return False
             self.threads = threads
-            self.thread_list.splice(0, self.thread_list.get_n_items(), [t['name'] for t in threads] or ['No conversations detected'])
             index = next((i for i, t in enumerate(threads) if t['id'] == preferred), 0 if not preferred else -1)
             if preferred and index < 0:
                 self.show_toast('This session is no longer available. Choose another conversation.')
                 index = 0
-            self.thread.set_selected(max(0, index))
-            self._thread_selected()
+            self.thread.set_sensitive(bool(threads))
+            self._thread_selected(index if threads else -1)
             return False
         threading.Thread(target=work, daemon=True).start()
 
-    def _thread_selected(self, *_):
-        index = self.thread.get_selected()
-        self.selected_thread = self.threads[index]['id'] if 0 <= index < len(self.threads) else ''
+    def _thread_selected(self, index):
+        valid = 0 <= index < len(self.threads)
+        self.selected_thread = self.threads[index]['id'] if valid else ''
+        self.thread.label.set_label(self.threads[index]['name'] if valid else 'No conversations detected for ' + NAMES[self._provider()])
+        self.thread.set_tooltip_text(self.threads[index]['name'] if valid else None)
+        self._fill_pill(self.thread, [t['name'] for t in self.threads], self._thread_selected, index)
         self.send.set_sensitive(bool(self.selected_thread))
 
     def _prompt_key(self, _controller, key, _code, state):
@@ -652,7 +678,8 @@ class PetWindow(Gtk.ApplicationWindow):
         threading.Thread(target=work, daemon=True).start()
 
     def open_task_chat(self, task):
-        self.harness.set_selected(self.harness_ids.index(task['provider']))
+        self.harness_index = self.harness_ids.index(task['provider'])
+        self._set_harness_label()
         self.open_panel('chat')
         self.load_threads(task['session'])
         if task['status'] in ('done', 'error'):

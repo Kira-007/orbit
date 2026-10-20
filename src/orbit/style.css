@@ -1,49 +1,77 @@
+/* Values follow src/renderer/style.css. Loaded above the user's GTK theme. */
 window.orbit, window.orbit > * { background: none; box-shadow: none; }
-.orbit * { font-family: Inter, sans-serif; color: #e1eeeb; font-size: 13px; }
-.toolbar { background: #242022; border-radius: 16px; padding: 0 4px; min-height: 32px; }
-.toolbar button { background: none; border: none; box-shadow: none; min-width: 26px; min-height: 24px; padding: 0; border-radius: 12px; }
-.toolbar button image { -gtk-icon-size: 14px; }
-.toolbar button { margin: 0; }
-.toolbar button:hover { background: #ffffff14; }
-.toolbar .badge { background: #f18c95; color: #111; border-radius: 6px; font-size: 8px; padding: 0 3px; min-height: 0; }
-.usage-strip { min-height: 3px; border-radius: 2px; }
-.panel { background: transparent; }
-.card { border-radius: 24px; padding: 12px 16px; margin-bottom: 8px; background: #505050; }
-.card.claude { background: #9b4e2d; }
-.card.agy { background: #286b40; }
-.card .card-title { color: #fff; font-weight: 600; font-size: 12px; }
-.card .state { font-size: 8px; text-transform: uppercase; background: #0002; border-radius: 4px; padding: 2px 5px; }
-.card .meta { font-size: 9px; color: #ffffffa0; }
-.card button.dismiss { background: none; border: none; box-shadow: none; min-width: 20px; min-height: 20px; padding: 0; }
-.empty, .sheet { background: #252525; border-radius: 22px; padding: 16px; }
-.usage-card { background: #252525; border-radius: 18px; padding: 12px 14px; margin-bottom: 8px; }
-.usage-card.claude progressbar progress { background: #ee9877; }
-.usage-card.codex progressbar progress { background: #eeeeee; }
-.usage-card.agy progressbar progress { background: #8bdba4; }
-.usage-card .usage-name { font-weight: 650; }
-.composer textview, .composer textview text { background: #1e1c21; border-radius: 12px; padding: 6px; }
-.toast { background: #2a463e; border-radius: 8px; padding: 8px; font-size: 11px; }
-.usage-strip { background: #eeeeee; }
-.usage-strip.claude { background: #ee9877; }
-.usage-strip.antigravity { background: #8bdba4; }
-.stack-toggle { background: #252525; border-radius: 12px; padding: 4px 10px; margin-bottom: 8px; font-size: 10px; }
-.mini-usage { background: #242022; border-radius: 3px; min-height: 6px; }
-.mini-usage .usage-strip { min-height: 6px; border-radius: 3px; }
-window.orbit .toolbar button, window.orbit .toolbar button.image-button { min-width: 26px; min-height: 24px; padding: 2px; margin: 0; border: none; outline: none; }
-window.orbit .toolbar { padding: 2px 6px; min-height: 0; }
+window.orbit * { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #e1eeeb; font-size: 13px; }
+window.orbit button { background: none; border: none; box-shadow: none; outline: none; min-height: 0; min-width: 0; padding: 0; margin: 0; text-shadow: none; -gtk-icon-shadow: none; }
 
-/* Compact panel content; these outrank the user's GTK theme. */
-window.orbit .panel, window.orbit .panel * { font-size: 11px; }
-window.orbit .card { padding: 8px 12px; margin-bottom: 6px; border-radius: 16px; }
-window.orbit .card .card-title { font-size: 12px; }
-window.orbit .card .meta, window.orbit .card .state { font-size: 9px; }
-window.orbit .card button.dismiss { min-width: 18px; min-height: 18px; padding: 0; margin: 0; }
-window.orbit .sheet, window.orbit .empty { padding: 10px; border-radius: 16px; }
-window.orbit .usage-card { padding: 8px 12px; margin-bottom: 6px; border-radius: 14px; }
-window.orbit .usage-card togglebutton { min-width: 20px; min-height: 18px; padding: 0 2px; margin: 0; }
-window.orbit .usage-card togglebutton image { -gtk-icon-size: 12px; }
-window.orbit .usage-card progressbar trough, window.orbit .usage-card progressbar progress { min-height: 4px; }
-window.orbit .panel dropdown > button, window.orbit .panel button { min-height: 24px; padding: 0 8px; margin: 0; }
-window.orbit .panel dropdown > button image, window.orbit .panel button image { -gtk-icon-size: 12px; }
-window.orbit .composer textview, window.orbit .composer textview text { padding: 4px; border-radius: 10px; }
-window.orbit .stack-toggle { min-height: 20px; padding: 0 8px; }
+/* Toolbar: 132x40 rounded bar; a 32x6 quota bar while resting. */
+window.orbit .toolbar { background: #242022; border-radius: 12px; padding: 4px; }
+window.orbit .toolbar button { min-width: 40px; min-height: 30px; border-radius: 15px; transition: background 160ms ease; }
+window.orbit .toolbar button:hover { background: #ffffff0c; }
+window.orbit .toolbar button image { -gtk-icon-size: 19px; }
+window.orbit .badge { background: #54b879; color: #fff; font-size: 8px; font-weight: 600; border: 2px solid #242022; border-radius: 10px; min-width: 12px; min-height: 12px; padding: 0 2px; margin: 0 3px 0 0; }
+window.orbit .mini-usage { background: #242022; border-radius: 12px; min-height: 6px; }
+window.orbit .usage-strip { min-height: 6px; border-radius: 12px; background: #eeeeee; }
+window.orbit .usage-strip.claude { background: #ee9877; }
+window.orbit .usage-strip.antigravity { background: #8bdba4; }
+
+/* Task cards. */
+window.orbit .panel { padding: 0 12px; }
+window.orbit .panel scrolledwindow, window.orbit .panel scrolledwindow > viewport { background: none; }
+window.orbit .card { border-radius: 24px; padding: 8px 8px 12px 16px; min-height: 58px; background: #303030; }
+window.orbit .card.claude { background: #b85f3d; }
+window.orbit .card.codex-desktop { background: #626262; }
+window.orbit .card.codex-cli { background: #303030; }
+window.orbit .card.agy { background: #286b40; }
+window.orbit .card + .card { margin-top: 8px; }
+window.orbit .card .state { font-size: 8px; color: #fff; letter-spacing: 0.3px; }
+window.orbit .card .dismiss { min-width: 20px; min-height: 20px; border-radius: 10px; background: #00000022; color: #ffffffb0; font-size: 14px; }
+window.orbit .card .dismiss:hover { background: #ffffff20; color: #fff; }
+window.orbit .card .card-title { font-size: 12px; font-weight: 600; color: #fff; margin-right: 24px; }
+window.orbit .card .task-activity { font-size: 11px; color: #ffffffaa; margin-right: 24px; margin-top: 1px; }
+window.orbit .peek { min-height: 7px; border-radius: 0 0 18px 18px; background: #303030; }
+window.orbit .peek1 { margin: 0 6px; }
+window.orbit .peek2 { margin: 0 12px; }
+window.orbit .peek.claude { background: #b85f3d; }
+window.orbit .peek.codex-desktop { background: #626262; }
+window.orbit .peek.agy { background: #286b40; }
+window.orbit .empty { background: #252525; border-radius: 22px; padding: 18px; color: #ddd; font-size: 12px; }
+
+/* Usage cards. */
+window.orbit .usage-card { background: #302e32; border: 1px solid #ffffff0e; border-radius: 16px; padding: 12px 14px; margin-bottom: 7px; }
+window.orbit .usage-name { font-size: 12px; font-weight: 600; color: #eee; margin-bottom: 3px; }
+window.orbit .usage-card.claude .usage-name { color: #ee9877; }
+window.orbit .usage-card.agy .usage-name { color: #8bdba4; }
+window.orbit .usage-indicator { color: #a49aa9; font-size: 12px; }
+window.orbit .usage-note { color: #938a99; font-size: 11px; }
+window.orbit .usage-row { margin: 6px 0 4px; }
+window.orbit .usage-row label { font-size: 11px; color: #aaa4ae; }
+window.orbit .usage-row .usage-value { font-size: 12px; font-weight: 600; color: #eee; min-width: 36px; font-feature-settings: "tnum"; }
+window.orbit .usage-eye { min-width: 25px; min-height: 25px; border-radius: 13px; }
+window.orbit .usage-eye image { -gtk-icon-size: 17px; }
+window.orbit .usage-eye:hover, window.orbit .usage-eye.selected { background: #ffffff14; }
+window.orbit .usage-card progressbar trough { min-height: 4px; border-radius: 6px; background: #4b464f; border: none; box-shadow: none; }
+window.orbit .usage-card progressbar progress { min-height: 4px; border-radius: 6px; background: #eeeeee; border: none; box-shadow: none; }
+window.orbit .usage-card.claude progressbar progress { background: #ee9877; }
+window.orbit .usage-card.agy progressbar progress { background: #8bdba4; }
+
+/* Composer. */
+window.orbit .composer { background: #242326; border: 1px solid #ffffff18; border-radius: 20px; padding: 14px; }
+window.orbit .composer textview, window.orbit .composer textview text { background: none; color: #f4f1f3; font-size: 13px; }
+window.orbit .composer .placeholder { color: #98939d; font-size: 13px; }
+window.orbit .pill { min-height: 0; }
+window.orbit .pill > button { background: #363338; border: 1px solid #ffffff14; border-radius: 10px; padding: 7px 8px; min-height: 0; }
+window.orbit .pill > button label { font-size: 10px; color: #e6e1e9; }
+window.orbit .pill > button:hover { background: #403c42; }
+window.orbit .send { min-width: 30px; min-height: 30px; border-radius: 11px; background: #c1dbc9; }
+window.orbit .send:hover { background: #d5ecdc; }
+window.orbit .send:disabled { background: #535158; }
+window.orbit .send image { -gtk-icon-size: 18px; }
+popover.pill-popover > contents { background: #302d33; border: 1px solid #ffffff20; border-radius: 12px; padding: 5px; box-shadow: 0 6px 16px #0006; }
+popover.pill-popover .pill-item { background: none; border: none; box-shadow: none; border-radius: 8px; padding: 9px 12px; min-height: 0; }
+popover.pill-popover .pill-item label { font-size: 11px; color: #e6e1e9; }
+popover.pill-popover .pill-item:hover, popover.pill-popover .pill-item.selected { background: #51484c; }
+popover.pill-popover .pill-item.h-claude label { color: #ee9877; }
+popover.pill-popover .pill-item.h-codex-cli label { color: #aaaaaa; }
+popover.pill-popover .pill-item.h-antigravity label { color: #8bdba4; }
+
+window.orbit .toast { background: #252525; border-radius: 8px; padding: 8px; font-size: 11px; margin-top: 6px; }
