@@ -81,7 +81,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self.direction, self.walking, self.dragging = 1, False, False
         self.toolbar_pinned = self.settings['controls']
         self.panel_view = None
-        self.toolbar_shown = True
+        self.toolbar_shown, self.morph = False, 0.0
         self.fleas, self.current_flea, self.run = [], None, None
         self.selected_thread, self.threads = '', []
 
@@ -145,6 +145,7 @@ class PetWindow(Gtk.ApplicationWindow):
                 self.toolbar.append(overlay)
             else:
                 self.toolbar.append(button)
+        self.toolbar.set_visible(False)
         self.fixed.put(self.toolbar, 0, 0)
         # The toolbar rests as a small bar that shows the selected quota; it opens on click.
         self.mini_usage = Gtk.Box(css_classes=['mini-usage'], can_target=False)
@@ -298,13 +299,20 @@ class PetWindow(Gtk.ApplicationWindow):
         bar_y = self.pet_y + top - offset - TOOLBAR_H if above else self.pet_y + bottom + offset
         center = self.pet_x + pw / 2
         self._place(self.toolbar, center - TOOLBAR_W / 2, bar_y)
-        self._place(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - MINI_H if above else px(4)))
+        # The resting bar morphs into the toolbar: morph 0 is the 32x6 bar, 1 the full toolbar.
+        t = self.morph
+        w, h = MINI_W + (TOOLBAR_W - MINI_W) * t, MINI_H + (TOOLBAR_H - MINI_H) * t
+        rest_y = bar_y + (TOOLBAR_H - MINI_H if above else px(4))
+        self.mini_usage.set_size_request(round(w), round(h))
+        self._place(self.mini_usage, center - w / 2, rest_y + (bar_y - rest_y) * t)
         if self.panel.get_visible():
             # Size the scrolled views to their content, capped at the room on that side of the pet.
             room = (bar_y - GAP - 8) if above else (height - bar_y - TOOLBAR_H - GAP - 8)
             for scroll in (self.cards_scroll, self.usage_scroll):
                 content = scroll.get_child().measure(Gtk.Orientation.VERTICAL, PANEL_W - px(24))[1]
-                scroll.set_min_content_height(max(40, min(content, PANEL_H, room - 40)))
+                # Limits are shown in full; they scroll only when the screen has no room.
+                cap = room - px(10) if scroll is self.usage_scroll else min(PANEL_H, room - 40)
+                scroll.set_min_content_height(max(40, min(content, cap)))
             panel_h = self.panel.measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
             panel_x = max(8, min(center - PANEL_W / 2, width - PANEL_W - 8))
             panel_y = bar_y - GAP - panel_h if above else bar_y + TOOLBAR_H + GAP
@@ -325,18 +333,19 @@ class PetWindow(Gtk.ApplicationWindow):
         self.fixed.set_child_transform(widget, transform)
 
     def _tween(self, key, duration, step, done=None):
-        """Run step(eased progress) every frame for duration seconds; a new tween for key replaces the old."""
+        """Run step(eased progress) at ~60 fps for duration seconds; a new tween for key replaces the old.
+
+        A timer rather than a tick callback: the frame clock can pause (e.g. during screencopy).
+        """
         if key in self.tweens:
-            self.remove_tick_callback(self.tweens.pop(key))
+            GLib.source_remove(self.tweens.pop(key))
         if not self.settings['animations']:
             step(1)
             return done and done()
-        start = [None]
+        start = time.monotonic()
 
-        def tick(_widget, clock):
-            now = clock.get_frame_time() / 1e6
-            start[0] = start[0] or now
-            t = min(1, (now - start[0]) / duration)
+        def frame():
+            t = min(1, (time.monotonic() - start) / duration)
             step(EASE(t))
             if t < 1:
                 return True
@@ -344,7 +353,7 @@ class PetWindow(Gtk.ApplicationWindow):
             if done:
                 done()
             return False
-        self.tweens[key] = self.add_tick_callback(tick)
+        self.tweens[key] = GLib.timeout_add(16, frame)
 
     def _motion(self, widget, opacity, dy, scale, origin):
         widget.set_opacity(opacity)
@@ -450,15 +459,32 @@ class PetWindow(Gtk.ApplicationWindow):
     def update_controls(self):
         show = bool(self.toolbar_pinned or self.panel_view) and not self.dragging
         self.layout()
-        if show != self.toolbar_shown:
-            self.toolbar_shown = show
-            up = getattr(self, 'above', False)
-            self._reveal(self.toolbar, show, px(5) if up else -px(5), .94, origin_bottom=up, duration=.24 if show else .2)
-            self._reveal(self.mini_usage, not show and not self.dragging, 0, 1, duration=.2)
-        elif self.dragging:
-            self.mini_usage.set_visible(False)
-        elif not show and not self.mini_usage.get_visible():
-            self._reveal(self.mini_usage, True, 0, 1, duration=.2)
+        if show == self.toolbar_shown:
+            return
+        self.toolbar_shown = show
+
+        def grow(t):
+            self.morph = t
+            self.layout()
+        if show:
+            # The bar grows into the toolbar, then the buttons fade in.
+            self.mini_fill.set_visible(False)
+
+            def opened():
+                self.mini_usage.set_visible(False)
+                self.toolbar.set_opacity(0)
+                self.toolbar.set_visible(True)
+                self._tween(self.toolbar, .12, self.toolbar.set_opacity)
+            self._tween('morph', .24, lambda t: grow(self.morph + (1 - self.morph) * t), opened)
+        else:
+            # The buttons fade out, then the toolbar shrinks back into the bar.
+            def collapse():
+                self.toolbar.set_visible(False)
+                self.mini_usage.set_visible(True)
+                start = self.morph
+                self._tween('morph', .22, lambda t: grow(start * (1 - t)),
+                            lambda: (self.mini_fill.set_visible(bool(self.settings['usageBar'])), self.update_input_region(True)))
+            self._tween(self.toolbar, .1, lambda t: self.toolbar.set_opacity(1 - t), collapse)
 
     def apply_settings(self, value):
         """Apply settings edited elsewhere, keeping the pet's centre fixed when it is resized."""
@@ -629,7 +655,7 @@ class PetWindow(Gtk.ApplicationWindow):
         quota = bar and next((w for w in (self.store.usage.get(bar['provider']) or {}).get('windows', []) if w['label'] == bar['label']), None)
         valid = quota and (not quota.get('reset') or quota['reset'] > now_ms())
         value = max(0, min(100, quota['remaining'])) if valid else 0
-        self.mini_fill.set_visible(bool(bar))
+        self.mini_fill.set_visible(bool(bar) and self.morph == 0)
         self.mini_fill.set_size_request(round(MINI_W * value / 100), MINI_H)
         for provider in USAGE_COLORS:
             (self.mini_fill.add_css_class if bar and provider == bar['provider'] else self.mini_fill.remove_css_class)(provider)
