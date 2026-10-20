@@ -7,6 +7,7 @@ import json
 import os
 import math
 import random
+import re
 import threading
 import time
 
@@ -29,13 +30,29 @@ from .usage import agy_usage, claude_usage, codex_usage  # noqa: E402
 
 NAMES = {'claude': 'Claude Code', 'codex-cli': 'Codex CLI', 'codex-desktop': 'Codex Desktop', 'antigravity': 'AGY CLI'}
 PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 360, 100, 32, 6
-MINI_W = 56
+MINI_W, MINI_H = 32, 6
 USAGE_COLORS = {'codex': '#eeeeee', 'claude': '#ee9877', 'antigravity': '#8bdba4'}
+
+
+def _usage_label(label):
+    """Shorten provider quota names the same way the Electron build did."""
+    label = re.sub(r'^(gemini|3p)-(5h|weekly)$', lambda m: ('Gemini' if m[1] == 'gemini' else 'Claude / GPT') + ' · ' + ('Week' if m[2] == 'weekly' else '5h'), label)
+    for old, new in (('Gemini Models', 'Gemini'), ('Claude and GPT models', 'Claude / GPT'), ('Five Hour Limit Remaining', '5h'), ('Weekly Limit Remaining', 'Week')):
+        label = label.replace(old, new)
+    return {'Session': '5h', 'Weekly': 'Week'}.get(label, label)
 
 
 def _age(t):
     sec = max(0, (now_ms() - t) // 1000)
     return 'just now' if sec < 60 else f'{sec // 60}m ago' if sec < 3600 else f'{sec // 3600}h ago'
+
+
+def _label_factory(chars):
+    """Drop-down rows that ellipsize long names so the composer keeps the panel width."""
+    factory = Gtk.SignalListItemFactory()
+    factory.connect('setup', lambda _f, item: item.set_child(Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END, max_width_chars=chars)))
+    factory.connect('bind', lambda _f, item: item.get_child().set_label(item.get_item().get_string()))
+    return factory
 
 
 class PetWindow(Gtk.ApplicationWindow):
@@ -123,7 +140,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self._hoverable(self.toolbar)
         # Shown in place of the toolbar while it is hidden, when a usage limit is selected.
         self.mini_usage = Gtk.Box(css_classes=['mini-usage'], can_target=False, visible=False)
-        self.mini_usage.set_size_request(MINI_W, 4)
+        self.mini_usage.set_size_request(MINI_W, MINI_H)
         self.mini_fill = Gtk.Box(css_classes=['usage-strip'], halign=Gtk.Align.START)
         self.mini_usage.append(self.mini_fill)
         self.fixed.put(self.mini_usage, 0, 0)
@@ -131,16 +148,18 @@ class PetWindow(Gtk.ApplicationWindow):
     def _build_panel(self):
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['panel'], visible=False)
         self.panel.set_size_request(PANEL_W, -1)
+        self.panel.set_overflow(Gtk.Overflow.HIDDEN)
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vhomogeneous=False)
         self.cards = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.stack_expanded, self.front_key, self.last_cycle = False, None, 0
         wheel = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
         wheel.connect('scroll', self._cycle_cards)
         self.cards.add_controller(wheel)
-        self.cards_scroll = Gtk.ScrolledWindow(child=self.cards, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True, max_content_height=PANEL_H)
+        self.cards_scroll = Gtk.ScrolledWindow(child=self.cards, hscrollbar_policy=Gtk.PolicyType.NEVER)
         self.stack.add_named(self.cards_scroll, 'cards')
         self.usage_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
-        self.stack.add_named(Gtk.ScrolledWindow(child=self.usage_box, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True, max_content_height=PANEL_H), 'usage')
+        self.usage_scroll = Gtk.ScrolledWindow(child=self.usage_box, hscrollbar_policy=Gtk.PolicyType.NEVER)
+        self.stack.add_named(self.usage_scroll, 'usage')
         self.stack.add_named(self._build_composer(), 'chat')
         self.toast = Gtk.Label(css_classes=['toast'], wrap=True, visible=False, margin_top=6)
         self.panel.append(self.stack)
@@ -150,18 +169,18 @@ class PetWindow(Gtk.ApplicationWindow):
     def _build_composer(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8, css_classes=['sheet', 'composer'])
         self.prompt = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False)
-        self.prompt.set_size_request(-1, 72)
+        self.prompt.set_size_request(-1, 56)
         keys = Gtk.EventControllerKey()
         keys.connect('key-pressed', self._prompt_key)
         self.prompt.add_controller(keys)
         box.append(self.prompt)
         row = Gtk.Box(spacing=6)
         self.harness_ids = list(NAMES)
-        self.harness = Gtk.DropDown.new_from_strings([NAMES[h] for h in self.harness_ids])
+        self.harness = Gtk.DropDown(model=Gtk.StringList.new([NAMES[h] for h in self.harness_ids]), factory=_label_factory(12))
         self.harness.set_selected(self.harness_ids.index(self.settings['harness']))
         self.harness.connect('notify::selected', lambda *_: self.load_threads())
         self.thread_list = Gtk.StringList()
-        self.thread = Gtk.DropDown(model=self.thread_list, hexpand=True)
+        self.thread = Gtk.DropDown(model=self.thread_list, hexpand=True, factory=_label_factory(16))
         self.thread.connect('notify::selected', self._thread_selected)
         self.send = Gtk.Button(icon_name='go-up-symbolic', tooltip_text='Send message (Enter; Shift+Enter for a new line)')
         self.send.connect('clicked', lambda *_: self.submit())
@@ -235,8 +254,13 @@ class PetWindow(Gtk.ApplicationWindow):
         bar_y = self.pet_y + top - offset - TOOLBAR_H if above else self.pet_y + bottom + offset
         center = self.pet_x + pw / 2
         self.fixed.move(self.toolbar, center - TOOLBAR_W / 2, bar_y)
-        self.fixed.move(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - 4 if above else 4))
+        self.fixed.move(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - MINI_H if above else 2))
         if self.panel.get_visible():
+            # Size the scrolled views to their content, capped at the room on that side of the pet.
+            room = (bar_y - GAP - 8) if above else (height - bar_y - TOOLBAR_H - GAP - 8)
+            for scroll in (self.cards_scroll, self.usage_scroll):
+                content = scroll.get_child().measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
+                scroll.set_min_content_height(max(40, min(content, PANEL_H, room - 50)))
             panel_h = self.panel.measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
             panel_x = max(8, min(center - PANEL_W / 2, width - PANEL_W - 8))
             panel_y = bar_y - GAP - panel_h if above else bar_y + TOOLBAR_H + GAP
@@ -494,7 +518,7 @@ class PetWindow(Gtk.ApplicationWindow):
         if bar:
             value = max(0, min(100, quota['remaining'])) if valid else 0
             self.usage_strip.set_size_request(round((TOOLBAR_W - 24) * value / 100), 3)
-            self.mini_fill.set_size_request(round(MINI_W * value / 100), 4)
+            self.mini_fill.set_size_request(round(MINI_W * value / 100), MINI_H)
             for strip in (self.usage_strip, self.mini_fill):
                 for provider in USAGE_COLORS:
                     (strip.add_css_class if provider == bar['provider'] else strip.remove_css_class)(provider)
@@ -508,7 +532,7 @@ class PetWindow(Gtk.ApplicationWindow):
         while child := self.usage_box.get_first_child():
             self.usage_box.remove(child)
         for key, name, css in (('claude', 'Claude', 'claude'), ('codex', 'Codex', 'codex'), ('antigravity', 'AGY', 'agy')):
-            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4, css_classes=['usage-card', css])
+            card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, css_classes=['usage-card', css])
             status = self.store.usage_status.get(key)
             heading = name + {'refreshing': '  ↻', 'failed': '  !'}.get(status, '')
             card.append(Gtk.Label(label=heading, xalign=0, css_classes=['usage-name']))
@@ -518,7 +542,7 @@ class PetWindow(Gtk.ApplicationWindow):
             for window in (snapshot or {}).get('windows', []):
                 expired = window.get('reset') and window['reset'] <= now_ms()
                 row = Gtk.Box(spacing=6)
-                row.append(Gtk.Label(label=window['label'], xalign=0, hexpand=True))
+                row.append(Gtk.Label(label=_usage_label(window['label']), xalign=0, hexpand=True))
                 selected = self.settings['usageBar'] == {'provider': key, 'label': window['label']}
                 eye = Gtk.ToggleButton(icon_name='view-reveal-symbolic', active=selected, tooltip_text='Show on collapsed bar')
                 eye.connect('toggled', lambda b, k=key, l=window['label']: self.select_usage_bar(k, l, b.get_active()))

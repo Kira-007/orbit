@@ -27,7 +27,23 @@ window.orbit, window.orbit > * { background: none; box-shadow: none; }
 .usage-strip.claude { background: #ee9877; }
 .usage-strip.antigravity { background: #8bdba4; }
 .stack-toggle { background: #252525; border-radius: 12px; padding: 4px 10px; margin-bottom: 8px; font-size: 10px; }
-.mini-usage { background: #242022cc; border-radius: 2px; min-height: 4px; }
-.mini-usage .usage-strip { min-height: 4px; border-radius: 2px; }
+.mini-usage { background: #242022; border-radius: 3px; min-height: 6px; }
+.mini-usage .usage-strip { min-height: 6px; border-radius: 3px; }
 window.orbit .toolbar button, window.orbit .toolbar button.image-button { min-width: 26px; min-height: 24px; padding: 2px; margin: 0; border: none; outline: none; }
 window.orbit .toolbar { padding: 2px 6px; min-height: 0; }
+
+/* Compact panel content; these outrank the user's GTK theme. */
+window.orbit .panel, window.orbit .panel * { font-size: 11px; }
+window.orbit .card { padding: 8px 12px; margin-bottom: 6px; border-radius: 16px; }
+window.orbit .card .card-title { font-size: 12px; }
+window.orbit .card .meta, window.orbit .card .state { font-size: 9px; }
+window.orbit .card button.dismiss { min-width: 18px; min-height: 18px; padding: 0; margin: 0; }
+window.orbit .sheet, window.orbit .empty { padding: 10px; border-radius: 16px; }
+window.orbit .usage-card { padding: 8px 12px; margin-bottom: 6px; border-radius: 14px; }
+window.orbit .usage-card togglebutton { min-width: 20px; min-height: 18px; padding: 0 2px; margin: 0; }
+window.orbit .usage-card togglebutton image { -gtk-icon-size: 12px; }
+window.orbit .usage-card progressbar trough, window.orbit .usage-card progressbar progress { min-height: 4px; }
+window.orbit .panel dropdown > button, window.orbit .panel button { min-height: 24px; padding: 0 8px; margin: 0; }
+window.orbit .panel dropdown > button image, window.orbit .panel button image { -gtk-icon-size: 12px; }
+window.orbit .composer textview, window.orbit .composer textview text { padding: 4px; border-radius: 10px; }
+window.orbit .stack-toggle { min-height: 20px; padding: 0 8px; }
