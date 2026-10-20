@@ -1,6 +1,7 @@
 """Settings normalization, compatible with the settings.json written by the Electron build."""
 import json
 import os
+import re
 from urllib.parse import unquote, urlparse
 
 from .paths import ROOT, SETTINGS_FILE, STATE_DIR
@@ -19,6 +20,10 @@ def _num(value, low, high, default=0):
         return max(low, min(high, float(value)))
     except (TypeError, ValueError):
         return default
+
+
+def _color(value, default):
+    return value if isinstance(value, str) and re.fullmatch(r'#[0-9a-fA-F]{6}', value) else default
 
 
 def _sheets(value):
@@ -49,7 +54,11 @@ def sheet_path(sheet):
 
 def bundled_pets():
     with open(ROOT / 'assets/library/pets.json') as handle:
-        return json.load(handle)
+        pets = json.load(handle)
+    for pet in pets:
+        for sheet in pet['spriteSheets'].values():
+            sheet['sheet'] = (ROOT / sheet['sheet']).as_uri()
+    return pets
 
 
 def normalize(value=None):
@@ -78,6 +87,9 @@ def normalize(value=None):
         'petScale': _num(value.get('petScale'), .6, 2.4, 1) if 'petScale' in value else 1,
         'movementSpeed': _num(value.get('movementSpeed'), 150, 1800, 700) if 'movementSpeed' in value else 700,
         'petName': str(value.get('petName') or '').strip()[:30] or DEFAULTS['petName'],
+        'petMode': 'sprite' if value.get('petMode') == 'sprite' or (not value.get('petMode') and active and active['spriteSheets']) else 'custom',
+        'bodyColor': _color(value.get('bodyColor'), '#90bbb7'), 'accentColor': _color(value.get('accentColor'), '#8ce8cf'),
+        'face': value['face'] if value.get('face') in ('friendly', 'focused', 'sleepy') else 'friendly',
         'animations': value['animations'] if isinstance(value.get('animations'), bool) else True,
         'controls': value['controls'] if isinstance(value.get('controls'), bool) else False,
         'hoverDelay': value['hoverDelay'] if value.get('hoverDelay') in (400, 750, 1200) else 750,

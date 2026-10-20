@@ -24,3 +24,4 @@ window.orbit, window.orbit > * { background: none; box-shadow: none; }
 .usage-strip { background: #eeeeee; }
 .usage-strip.claude { background: #ee9877; }
 .usage-strip.antigravity { background: #8bdba4; }
+.stack-toggle { background: #252525; border-radius: 12px; padding: 4px 10px; margin-bottom: 8px; font-size: 10px; }

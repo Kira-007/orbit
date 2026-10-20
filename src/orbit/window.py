@@ -20,7 +20,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Gtk4LayerShell as LayerShell, Pan
 
 from . import settings as prefs  # noqa: E402
 from .activity import Activity  # noqa: E402
-from .notifications import NotificationFeed  # noqa: E402
+from .notifications import NotificationFeed, task_key  # noqa: E402
 from .paths import POSITION_FILE, ROOT, STATE_DIR  # noqa: E402
 from .sprite import BOX_H, BOX_W, DragDirection, SpriteView, pet_state  # noqa: E402
 from .store import Store, now_ms  # noqa: E402
@@ -106,7 +106,7 @@ class PetWindow(Gtk.ApplicationWindow):
                                 ('power-profile-performance-symbolic', 'Usage remaining', 'usage'),
                                 ('mail-unread-symbolic', 'Task notifications', 'cards')):
             button = Gtk.Button(icon_name=icon, tooltip_text=tip)
-            button.connect('clicked', lambda _b, v=view: self.open_panel(None if self.panel_view == v else v))
+            button.connect('clicked', lambda _b, v=view: self._toggle_view(v))
             if view == 'cards':
                 overlay = Gtk.Overlay(child=button)
                 self.badge = Gtk.Label(css_classes=['badge'], halign=Gtk.Align.END, valign=Gtk.Align.START, visible=False, can_target=False)
@@ -125,6 +125,10 @@ class PetWindow(Gtk.ApplicationWindow):
         self.panel.set_size_request(PANEL_W, -1)
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.CROSSFADE, vhomogeneous=False)
         self.cards = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        self.stack_expanded, self.front_key, self.last_cycle = False, None, 0
+        wheel = Gtk.EventControllerScroll(flags=Gtk.EventControllerScrollFlags.VERTICAL)
+        wheel.connect('scroll', self._cycle_cards)
+        self.cards.add_controller(wheel)
         self.cards_scroll = Gtk.ScrolledWindow(child=self.cards, hscrollbar_policy=Gtk.PolicyType.NEVER, propagate_natural_height=True, max_content_height=PANEL_H)
         self.stack.add_named(self.cards_scroll, 'cards')
         self.usage_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -166,6 +170,8 @@ class PetWindow(Gtk.ApplicationWindow):
 
     # ---- geometry ------------------------------------------------------
     def _monitor(self):
+        if getattr(self, '_pinned_monitor', None):
+            return self._pinned_monitor
         surface = self.get_surface()
         monitor = surface and self.get_display().get_monitor_at_surface(surface)
         return monitor or self.get_display().get_monitors().get_item(0)
@@ -187,6 +193,7 @@ class PetWindow(Gtk.ApplicationWindow):
             monitor = monitors.get_item(i)
             if monitor.get_connector() == saved.get('monitor'):
                 LayerShell.set_monitor(self, monitor)
+                self._pinned_monitor = monitor
         self.pet_x, self.pet_y = saved.get('x', -1), saved.get('y', -1)
 
     def save_position(self):
@@ -296,7 +303,7 @@ class PetWindow(Gtk.ApplicationWindow):
 
     def _context_menu(self, gesture, _n, x, y):
         menu = Gio.Menu()
-        for label, action in (('Hide', 'app.hide'), ('Reset position', 'app.reset-position'), ('Quit Orbit', 'app.quit')):
+        for label, action in (('Hide', 'app.hide'), ('Settings', 'app.settings'), ('Reset position', 'app.reset-position'), ('Quit Orbit', 'app.quit')):
             menu.append(label, action)
         popover = Gtk.PopoverMenu.new_from_model(menu)
         popover.set_parent(self.sprite)
@@ -323,10 +330,35 @@ class PetWindow(Gtk.ApplicationWindow):
         self.toolbar.set_visible(bool(self.toolbar_pinned or self.hovering or self.panel_view) and not self.dragging)
         self.layout()
 
+    def apply_settings(self, value):
+        """Apply settings edited elsewhere, keeping the pet's centre fixed when it is resized."""
+        old_w, old_h = self.pet_size()
+        self.settings = value
+        new_w, new_h = self.pet_size()
+        self.sprite.resize(value['petScale'])
+        self.pet_x += (old_w - new_w) / 2
+        self.pet_y += (old_h - new_h) / 2
+        self.toolbar_pinned = value['controls'] or bool(self.panel_view)
+        self._usage_signature = None
+        self.update_sprite()
+        self.update_controls()
+        self.paint()
+
+    def show_settings(self):
+        from .settings_window import SettingsWindow
+        if not getattr(self, 'settings_window', None):
+            self.settings_window = SettingsWindow(self)
+            self.settings_window.connect('destroy', lambda *_: setattr(self, 'settings_window', None))
+        self.settings_window.present()
+
     def _active_pet(self):
         return next((p for p in self.settings['spritePets'] if p['id'] == self.settings['activeSpritePet']), {})
 
     def update_sprite(self):
+        if self.settings['petMode'] != 'sprite':
+            self.sprite.set_robot({'body': self.settings['bodyColor'], 'accent': self.settings['accentColor'],
+                                   'face': self.settings['face'], 'state': self.state}, self.settings['animations'] and not self.dragging)
+            return
         pet = self._active_pet()
         sheets = pet.get('spriteSheets') or {}
         state = self.state
@@ -339,6 +371,25 @@ class PetWindow(Gtk.ApplicationWindow):
         self.sprite.set_sprite(config, self.settings['animations'], self.direction * original < 0)
 
     # ---- panels ------------------------------------------------------------
+    def _toggle_view(self, view):
+        # The notification button opens a collapsed stack; other entry points expand it.
+        self.stack_expanded = view != 'cards'
+        self._cards_signature = None
+        self.open_panel(None if self.panel_view == view else view)
+
+    def _cycle_cards(self, _controller, _dx, dy):
+        if self.stack_expanded or not dy or time.monotonic() - self.last_cycle < .18:
+            return not self.stack_expanded
+        tasks = self.feed.update(self.sessions, self.settings['completionMinutes'])
+        if len(tasks) < 2:
+            return True
+        self.last_cycle = time.monotonic()
+        keys = [task_key(t) for t in tasks]
+        index = keys.index(self.front_key) if self.front_key in keys else 0
+        self.front_key = keys[(index + (1 if dy > 0 else -1)) % len(keys)]
+        self._force_paint()
+        return True
+
     def open_panel(self, view):
         self.panel_view = view
         self.panel.set_visible(bool(view))
@@ -379,7 +430,11 @@ class PetWindow(Gtk.ApplicationWindow):
         self.badge.set_label(str(len(tasks)))
         self.badge.set_visible(bool(tasks))
         self._paint_usage_strip()
-        signature = json.dumps([[t['session'], t['status'], t['title'], t['activity'], _age(t['time'])] for t in tasks])
+        keys = [task_key(t) for t in tasks]
+        if self.front_key in keys:
+            front = keys.index(self.front_key)
+            tasks = tasks[front:] + tasks[:front]
+        signature = json.dumps([[t['session'], t['status'], t['title'], t['activity'], _age(t['time'])] for t in tasks] + [self.stack_expanded])
         if self.panel_view == 'cards' and signature != getattr(self, '_cards_signature', None):
             self._cards_signature = signature
             self.feed.save()
@@ -394,7 +449,11 @@ class PetWindow(Gtk.ApplicationWindow):
             self.cards.remove(child)
         if not tasks:
             self.cards.append(Gtk.Label(label='No tasks yet', css_classes=['empty']))
-        for task in tasks:
+        if not self.stack_expanded and len(tasks) > 1:
+            more = Gtk.Button(label=f'Show all {len(tasks)}  ·  scroll to cycle', css_classes=['stack-toggle'], halign=Gtk.Align.END)
+            more.connect('clicked', lambda *_: (setattr(self, 'stack_expanded', True), self._force_paint()))
+            self.cards.append(more)
+        for task in tasks if self.stack_expanded else tasks[:1]:
             css = {'claude': 'claude', 'antigravity': 'agy'}.get(task['provider'], 'codex')
             card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['card', css], spacing=4)
             top = Gtk.Box(spacing=6)
@@ -644,6 +703,20 @@ class PetWindow(Gtk.ApplicationWindow):
 
     def summon(self, x, y):
         """Drop a flea at global logical coordinates (from hyprctl cursorpos)."""
+        monitors = self.get_display().get_monitors()
+        for i in range(monitors.get_n_items()):
+            monitor = monitors.get_item(i)
+            g = monitor.get_geometry()
+            if g.x <= x < g.x + g.width and g.y <= y < g.y + g.height and monitor != self._monitor():
+                # The overlay covers one monitor; move it (and the pet) to the cursor's monitor.
+                self.clear_fleas()
+                LayerShell.set_monitor(self, monitor)
+                self._pinned_monitor = monitor
+                pw, ph = self.pet_size()
+                self.pet_x, self.pet_y = min(x - g.x, g.width - pw), min(y - g.y, g.height - ph)
+                self.save_position()
+                GLib.timeout_add(100, lambda: self.layout() or False)
+                return True
         geometry = self._monitor().get_geometry()
         return self.add_flea(x - geometry.x, y - geometry.y)
 

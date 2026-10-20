@@ -13,6 +13,7 @@ gi.require_version('Gtk', '4.0')
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .paths import ROOT  # noqa: E402
+from .tray import Tray  # noqa: E402
 from .window import PetWindow  # noqa: E402
 
 
@@ -26,7 +27,8 @@ class OrbitApp(Gtk.Application):
         super().__init__(application_id='foundation.orbit.AgentPet', flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.window = None
         for name, callback in (('hide', lambda *_: self.toggle(False)), ('show', lambda *_: self.toggle(True)),
-                               ('reset-position', lambda *_: self.window.reset_position()), ('quit', lambda *_: self.quit())):
+                               ('reset-position', lambda *_: self.window.reset_position()),
+                               ('settings', lambda *_: self.window.show_settings()), ('quit', lambda *_: self.quit())):
             action = Gio.SimpleAction.new(name, None)
             action.connect('activate', callback)
             self.add_action(action)
@@ -46,6 +48,13 @@ class OrbitApp(Gtk.Application):
             return
         self.window = PetWindow(self)
         self.window.present()
+        try:
+            self.tray = Tray(self.window.settings['petName'] + ' · your agent companion', [
+                ('Show companion', lambda: self.toggle(True)), ('Hide companion', lambda: self.toggle(False)),
+                ('Settings', self.window.show_settings), None, ('Quit Orbit', self.quit)],
+                lambda: self.toggle(not self.window.get_visible()))
+        except GLib.Error:
+            self.tray = None
 
     def do_shutdown(self):
         if self.window:

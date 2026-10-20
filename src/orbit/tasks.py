@@ -7,6 +7,7 @@ import subprocess
 import threading
 from pathlib import Path
 
+from .desktop_ipc import desktop_url, send_desktop_message
 from .paths import ROOT
 from .store import PROVIDERS, now_ms
 
@@ -53,8 +54,15 @@ def start_task(provider, prompt, thread_id, store, on_finish):
     if not selected:
         return False, 'Choose a conversation before sending'
     if provider == 'codex-desktop':
-        # TODO(gtk4-migration): port desktop-ipc.cjs (Codex Desktop IPC bridge).
-        return False, 'Codex Desktop messaging is not ported to the GTK build yet'
+        desktop = os.environ.get('ORBIT_CODEX_DESKTOP') or shutil.which('codex-desktop') or shutil.which('chatgpt')
+        if not desktop:
+            return False, 'Codex Desktop launcher is unavailable'
+        try:
+            subprocess.Popen([desktop, desktop_url(selected['id'])], start_new_session=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            send_desktop_message(selected['id'], prompt)
+        except (OSError, ValueError, RuntimeError) as error:
+            return False, str(error) or 'Desktop could not accept the message'
+        return True, 'Sent to %s in Desktop' % selected['name']
     name = 'codex' if provider.startswith('codex-') else 'claude' if provider == 'claude' else 'agy'
     executable = shutil.which(name)
     if not executable:

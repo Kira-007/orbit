@@ -8,11 +8,12 @@ parser.add_argument('--no-autostart',action='store_true')
 parser.add_argument('--hooks',action='store_true',help='Also enable passive Claude Code and AGY hooks')
 parser.add_argument('--check',action='store_true',help='Check requirements without modifying files')
 args=parser.parse_args()
-missing=[x for x in ('node','python3','hyprctl','Xwayland') if not shutil.which(x)]
-if not any(shutil.which(x) for x in ('electron44','electron')):missing.append('electron44 or electron')
-for name in ('libX11.so.6','libXext.so.6'):
+missing=[x for x in ('python3','hyprctl') if not shutil.which(x)]
+for name in ('libgtk-4.so.1','libgtk4-layer-shell.so'):
     try:ctypes.CDLL(name)
     except OSError:missing.append(name)
+probe=subprocess.run(['python3','-c',"import gi;gi.require_version('Gtk','4.0');gi.require_version('Gtk4LayerShell','1.0');from gi.repository import Gtk,Gtk4LayerShell"],capture_output=True)
+if probe.returncode:missing.append('python-gobject with Gtk 4 and Gtk4LayerShell typelibs')
 if missing:parser.exit(1,'Missing dependencies: '+', '.join(missing)+'\n')
 probe=subprocess.run(['hyprctl','eval','assert(type(hl.window_rule)=="function")'],capture_output=True,text=True)
 if probe.returncode or probe.stdout.strip()!='ok':parser.exit(1,'Orbit requires a running Hyprland session with the Lua API (tested on 0.56.2).\n')
@@ -53,8 +54,8 @@ apps=DATA/'applications';apps.mkdir(parents=True,exist_ok=True)
 # Desktop Entry quoting differs from shell quoting.
 def desktop_quote(value):return '"'+str(value).replace('\\','\\\\').replace('"','\\"').replace('`','\\`').replace('$','\\$')+'"'
 launcher=apps/'orbit.desktop'
-launcher.write_text('[Desktop Entry]\nType=Application\nName=Orbit\nComment=Coding agent companion for Hyprland\nExec='+desktop_quote(ROOT/'start.sh')+'\nIcon='+str(ROOT/'assets/icons/tray.png')+'\nTerminal=false\nCategories=Utility;Development;\n')
+launcher.write_text('[Desktop Entry]\nType=Application\nName=Orbit\nComment=Coding agent companion for Hyprland\nExec='+desktop_quote(ROOT/'start-gtk.sh')+'\nIcon='+str(ROOT/'assets/icons/tray.png')+'\nTerminal=false\nCategories=Utility;Development;\n')
 record.update(root=str(ROOT),config=str(config),launcher=str(launcher),hooks=args.hooks or record.get('hooks',False))
 manifest.write_text(json.dumps(record,indent=2)+'\n')
-print('Installed Orbit for this user. Run ./start.sh; '+('autostart enabled.' if not args.no_autostart else 'autostart disabled.'))
+print('Installed Orbit for this user. Run ./start-gtk.sh; '+('autostart enabled.' if not args.no_autostart else 'autostart disabled.'))
 if args.hooks:print('Restart Claude/AGY to load hooks. Hook support depends on your CLI version.')
