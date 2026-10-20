@@ -341,7 +341,11 @@ class PetWindow(Gtk.ApplicationWindow):
         self.pet_x, self.pet_y = max(0, min(self.pet_x, width - pw)), max(0, min(self.pet_y, height - ph))
         self._place(self.sprite, self.pet_x, self.pet_y)
         top, bottom = self.sprite.visible_bounds()
-        above = self.above = self.pet_y > height - self.pet_y - ph
+        above = self.pet_y > height - self.pet_y - ph
+        if above != getattr(self, 'above', None):
+            # The resting bar is drawn on the side facing the pet; redraw it when that side flips.
+            self.mini_usage.queue_draw()
+        self.above = above
         offset = float(self._active_pet().get('offsetY') or 0)
         # Use the toolbar's real size so the drawn background and the icons line up exactly.
         tw = max(TOOLBAR_W, self.toolbar.measure(Gtk.Orientation.HORIZONTAL, -1)[1])
@@ -716,7 +720,7 @@ class PetWindow(Gtk.ApplicationWindow):
         """The resting quota bar, interpolated towards the toolbar's shape by self.morph."""
         t = self.morph
         w, h = MINI_W + (width - MINI_W) * t, MINI_H + (height - MINI_H) * t
-        rest = height - MINI_H if getattr(self, 'above', False) else px(4)
+        rest = height - MINI_H - px(4) if getattr(self, 'above', False) else px(4)
         x, y = (width - w) / 2, rest * (1 - t)
         radius = min(h / 2, px(12))
 
