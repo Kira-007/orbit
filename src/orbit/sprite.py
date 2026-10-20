@@ -49,6 +49,7 @@ class SpriteView(Gtk.DrawingArea):
         self.robot = None
         self.started = time.monotonic()
         self.loaded = None
+        self.anchors = []
         self._tick = None
         self.set_draw_func(self._draw)
         self.resize(1.0)
@@ -79,15 +80,28 @@ class SpriteView(Gtk.DrawingArea):
             self._tick = None
         self.queue_draw()
 
+    def set_anchor_sheets(self, configs):
+        """Sheets whose combined outline anchors the toolbar, so it stays put across states."""
+        self.anchors = []
+        for config in configs:
+            try:
+                self.anchors.append(_frames(config))
+            except GLib.Error:
+                pass
+
     def visible_bounds(self):
-        """Opaque vertical extent of the sprite inside the widget, in widget pixels."""
+        """Opaque vertical extent of the pet inside the widget, in widget pixels."""
         h = self.get_height() or BOX_H * self.scale
-        if not self.loaded:
+        sheets = self.anchors or ([self.loaded] if self.loaded else [])
+        if self.robot and not self.loaded or not sheets:
             return 0, h
-        _, fw, fh, top, bottom = self.loaded
-        ratio = min((self.get_width() or BOX_W * self.scale) / fw, h / fh)
-        pad = (h - fh * ratio) / 2
-        return pad + top * ratio, pad + bottom * ratio
+        w = self.get_width() or BOX_W * self.scale
+        bounds = []
+        for _, fw, fh, top, bottom in sheets:
+            ratio = min(w / fw, h / fh)
+            pad = (h - fh * ratio) / 2
+            bounds.append((pad + top * ratio, pad + bottom * ratio))
+        return min(b[0] for b in bounds), max(b[1] for b in bounds)
 
     def _draw(self, _area, ctx, width, height):
         if self.robot and not self.loaded:

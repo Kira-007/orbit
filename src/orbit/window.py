@@ -568,6 +568,7 @@ class PetWindow(Gtk.ApplicationWindow):
             return
         pet = self._active_pet()
         sheets = pet.get('spriteSheets') or {}
+        self.sprite.set_anchor_sheets([c for c in sheets.values() if c])
         state = self.state
         if self.walking:
             config = (sheets.get('dragging') if self.dragging else None) or sheets.get('walking')
