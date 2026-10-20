@@ -40,7 +40,7 @@ PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 430, 132, 40, 8
 ICONS = ROOT / 'assets/icons/ui'
 MINI_W, MINI_H = 32, 6
 EASE = lambda t: 1 - (1 - t) ** 3  # noqa: E731  close to cubic-bezier(.22,.75,.25,1)
-EASE_IN_OUT = lambda t: 4 * t ** 3 if t < .5 else 1 - (-2 * t + 2) ** 3 / 2  # noqa: E731
+EASE_IN_OUT = lambda t: (1 - math.cos(math.pi * t)) / 2  # noqa: E731  sine in-out
 
 
 def set_ui_scale(factor):
@@ -188,6 +188,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self.mini_usage.set_draw_func(self._draw_bar)
         self.quota_fill = (0, None)
         self.fixed.put(self.mini_usage, 0, 0)
+        self.mini_usage.insert_before(self.fixed, self.toolbar)
 
     def _build_panel(self):
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['panel'], visible=False)
@@ -364,27 +365,38 @@ class PetWindow(Gtk.ApplicationWindow):
         self.fixed.set_child_transform(widget, transform)
 
     def _tween(self, key, duration, step, done=None, ease=None):
-        """Run step(eased progress) at ~60 fps for duration seconds; a new tween for key replaces the old.
+        """Run step(eased progress) on each frame for duration seconds; a new tween for key replaces the old.
 
-        A timer rather than a tick callback: the frame clock can pause (e.g. during screencopy).
+        Frames come from the frame clock for vsync-smooth motion. A watchdog timer finishes the
+        tween if the clock pauses (it does during screencopy).
         """
         if key in self.tweens:
-            GLib.source_remove(self.tweens.pop(key))
+            tick, watchdog = self.tweens.pop(key)
+            self.remove_tick_callback(tick)
+            GLib.source_remove(watchdog)
         if not self.settings['animations']:
             step(1)
             return done and done()
         start = time.monotonic()
 
-        def frame():
+        def advance(*_):
             t = min(1, (time.monotonic() - start) / duration)
             step((ease or EASE)(t))
             if t < 1:
                 return True
-            self.tweens.pop(key, None)
+            tick, watchdog = self.tweens.pop(key)
+            GLib.source_remove(watchdog)
             if done:
                 done()
             return False
-        self.tweens[key] = GLib.timeout_add(8, frame, priority=GLib.PRIORITY_HIGH_IDLE)
+
+        def stalled():
+            if key in self.tweens and time.monotonic() - start >= duration:
+                self.remove_tick_callback(self.tweens[key][0])
+                advance()
+                return False
+            return key in self.tweens
+        self.tweens[key] = (self.add_tick_callback(advance), GLib.timeout_add(100, stalled))
 
     def _motion(self, widget, opacity, dy, scale, origin):
         widget.set_opacity(opacity)
@@ -493,27 +505,21 @@ class PetWindow(Gtk.ApplicationWindow):
         if show == self.toolbar_shown:
             return
         self.toolbar_shown = show
+        # One continuous motion: the drawn bar (the toolbar's only background) changes shape
+        # while the icons fade in over the last 40% when opening, or out over the first 35% when closing.
+        start = self.morph
+        target = 1.0 if show else 0.0
+        self.toolbar.set_visible(True)
 
-        def grow(t):
-            self.morph = t
+        def step(t):
+            self.morph = start + (target - start) * t
+            self.toolbar.set_opacity(max(0, (self.morph - .6) / .4))
             self.mini_usage.queue_draw()
-        if show:
-            # The bar grows into the toolbar, then the buttons fade in.
-            def opened():
-                self.mini_usage.set_visible(False)
-                self.toolbar.set_opacity(0)
-                self.toolbar.set_visible(True)
-                self._tween(self.toolbar, .12, self.toolbar.set_opacity)
-            start = self.morph
-            self._tween('morph', .26, lambda t: grow(start + (1 - start) * t), opened, ease=EASE_IN_OUT)
-        else:
-            # The buttons fade out, then the toolbar shrinks back into the bar.
-            def collapse():
-                self.toolbar.set_visible(False)
-                self.mini_usage.set_visible(True)
-                start = self.morph
-                self._tween('morph', .24, lambda t: grow(start * (1 - t)), lambda: self.update_input_region(True), ease=EASE_IN_OUT)
-            self._tween(self.toolbar, .1, lambda t: self.toolbar.set_opacity(1 - t), collapse)
+
+        def done():
+            self.toolbar.set_visible(show)
+            self.update_input_region(True)
+        self._tween('morph', .3 if show else .28, step, done, ease=EASE_IN_OUT)
 
     def apply_settings(self, value):
         """Apply settings edited elsewhere, keeping the pet's centre fixed when it is resized."""

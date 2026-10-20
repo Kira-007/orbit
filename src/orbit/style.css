@@ -4,7 +4,7 @@ window.orbit * { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color
 window.orbit button { background: none; border: none; box-shadow: none; outline: none; min-height: 0; min-width: 0; padding: 0; margin: 0; text-shadow: none; -gtk-icon-shadow: none; }
 
 /* Toolbar: 132x40 rounded bar; a 32x6 quota bar while resting. */
-window.orbit .toolbar { background: #242022; border-radius: 12px; padding: 4px; }
+window.orbit .toolbar { background: none; padding: 4px; }  /* the drawn bar behind it is the background */
 window.orbit .toolbar button { min-width: 40px; min-height: 30px; border-radius: 15px; transition: background 160ms ease; }
 window.orbit .toolbar button:hover { background: #ffffff0c; }
 window.orbit .toolbar button image { -gtk-icon-size: 19px; }
