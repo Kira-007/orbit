@@ -75,3 +75,12 @@ popover.pill-popover .pill-item.h-codex-cli label { color: #aaaaaa; }
 popover.pill-popover .pill-item.h-antigravity label { color: #8bdba4; }
 
 window.orbit .toast { background: #252525; border-radius: 8px; padding: 8px; font-size: 11px; margin-top: 6px; }
+
+/* Hover and press motion (Electron: 160-180ms). */
+window.orbit .toolbar button image { transition: transform 180ms ease; }
+window.orbit .toolbar button:hover image { transform: translateY(-1px) scale(1.09); }
+window.orbit .toolbar button:active image { transform: scale(0.9); }
+window.orbit .send { transition: background 150ms ease, transform 180ms ease; }
+window.orbit .send:hover { transform: translateY(-1px); }
+window.orbit .send:active { transform: scale(0.92); }
+window.orbit .pill > button, window.orbit .usage-eye, window.orbit .card .dismiss { transition: background 160ms ease; }

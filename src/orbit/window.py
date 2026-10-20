@@ -17,7 +17,9 @@ import gi
 gi.require_version('Gdk', '4.0')
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gtk4LayerShell', '1.0')
-from gi.repository import Gdk, Gio, GLib, Gtk, Gtk4LayerShell as LayerShell, Pango  # noqa: E402
+gi.require_version('Gsk', '4.0')
+gi.require_version('Graphene', '1.0')
+from gi.repository import Gdk, Gio, GLib, Graphene, Gsk, Gtk, Gtk4LayerShell as LayerShell, Pango  # noqa: E402
 
 from . import settings as prefs  # noqa: E402
 from .activity import Activity  # noqa: E402
@@ -29,9 +31,24 @@ from .tasks import open_threads, start_task  # noqa: E402
 from .usage import agy_usage, claude_usage, codex_usage  # noqa: E402
 
 NAMES = {'claude': 'Claude Code', 'codex-cli': 'Codex CLI', 'codex-desktop': 'Codex Desktop', 'antigravity': 'AGY CLI'}
+# Sizes in Electron CSS pixels. set_ui_scale() converts them to logical pixels so the
+# pet keeps the size it had under XWayland, which ignores fractional monitor scaling.
+UI = 1.0
+BASE = {'PANEL_W': 358, 'PANEL_H': 430, 'TOOLBAR_W': 132, 'TOOLBAR_H': 40, 'GAP': 8, 'MINI_W': 32, 'MINI_H': 6}
 PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 430, 132, 40, 8
 ICONS = ROOT / 'assets/icons/ui'
 MINI_W, MINI_H = 32, 6
+EASE = lambda t: 1 - (1 - t) ** 3  # noqa: E731  close to cubic-bezier(.22,.75,.25,1)
+
+
+def set_ui_scale(factor):
+    global UI
+    UI = factor
+    globals().update({name: round(value * factor) for name, value in BASE.items()})
+
+
+def px(value):
+    return round(value * UI)
 USAGE_COLORS = {'codex': '#eeeeee', 'claude': '#ee9877', 'antigravity': '#8bdba4'}
 
 
@@ -64,6 +81,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self.direction, self.walking, self.dragging = 1, False, False
         self.toolbar_pinned = self.settings['controls']
         self.panel_view = None
+        self.toolbar_shown = True
         self.fleas, self.current_flea, self.run = [], None, None
         self.selected_thread, self.threads = '', []
 
@@ -77,6 +95,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self._restore_position()
 
         self.fixed = Gtk.Fixed()
+        self.places, self.motion, self.tweens = {}, {}, {}
         self.set_child(self.fixed)
         self._build_pet()
         self._build_toolbar()
@@ -99,7 +118,7 @@ class PetWindow(Gtk.ApplicationWindow):
     # ---- construction -------------------------------------------------
     def _build_pet(self):
         self.sprite = SpriteView()
-        self.sprite.resize(self.settings['petScale'])
+        self.sprite.resize(self.settings['petScale'] * UI)
         self.fixed.put(self.sprite, 0, 0)
         # Track the drag on the fixed surface, whose coordinates don't move with the pet.
         drag = Gtk.GestureDrag(button=1)
@@ -164,7 +183,7 @@ class PetWindow(Gtk.ApplicationWindow):
         placeholder = Gtk.Label(label='Write a message…', css_classes=['placeholder'], xalign=0, yalign=0,
                                 halign=Gtk.Align.START, valign=Gtk.Align.START, can_target=False)
         self.prompt.get_buffer().connect('changed', lambda b: placeholder.set_visible(b.get_char_count() == 0))
-        scroll = Gtk.ScrolledWindow(child=self.prompt, hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_height=86, max_content_height=120)
+        scroll = Gtk.ScrolledWindow(child=self.prompt, hscrollbar_policy=Gtk.PolicyType.NEVER, min_content_height=px(86), max_content_height=px(120))
         field = Gtk.Overlay(child=scroll)
         field.add_overlay(placeholder)
         box.append(field)
@@ -193,9 +212,9 @@ class PetWindow(Gtk.ApplicationWindow):
         button.label = label
         button.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['pill-menu'])
         popover = Gtk.Popover(child=Gtk.ScrolledWindow(child=button.list, hscrollbar_policy=Gtk.PolicyType.NEVER,
-                                                       propagate_natural_height=True, max_content_height=170),
+                                                       propagate_natural_height=True, max_content_height=px(170)),
                               has_arrow=False, css_classes=['pill-popover'])
-        popover.set_size_request(300 if expand else 170, -1)
+        popover.set_size_request(px(300 if expand else 170), -1)
         button.set_popover(popover)
         return button
 
@@ -257,7 +276,7 @@ class PetWindow(Gtk.ApplicationWindow):
             pass
 
     def pet_size(self):
-        scale = self.settings['petScale']
+        scale = self.settings['petScale'] * UI
         return BOX_W * scale, BOX_H * scale
 
     def move_pet(self, x, y):
@@ -272,27 +291,85 @@ class PetWindow(Gtk.ApplicationWindow):
         if self.pet_x < 0:
             self.pet_x, self.pet_y = width - pw - 60, height - ph - 120
         self.pet_x, self.pet_y = max(0, min(self.pet_x, width - pw)), max(0, min(self.pet_y, height - ph))
-        self.fixed.move(self.sprite, self.pet_x, self.pet_y)
+        self._place(self.sprite, self.pet_x, self.pet_y)
         top, bottom = self.sprite.visible_bounds()
-        above = self.pet_y > height - self.pet_y - ph
+        above = self.above = self.pet_y > height - self.pet_y - ph
         offset = float(self._active_pet().get('offsetY') or 0)
         bar_y = self.pet_y + top - offset - TOOLBAR_H if above else self.pet_y + bottom + offset
         center = self.pet_x + pw / 2
-        self.fixed.move(self.toolbar, center - TOOLBAR_W / 2, bar_y)
-        self.fixed.move(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - MINI_H if above else 4))
+        self._place(self.toolbar, center - TOOLBAR_W / 2, bar_y)
+        self._place(self.mini_usage, center - MINI_W / 2, bar_y + (TOOLBAR_H - MINI_H if above else px(4)))
         if self.panel.get_visible():
             # Size the scrolled views to their content, capped at the room on that side of the pet.
             room = (bar_y - GAP - 8) if above else (height - bar_y - TOOLBAR_H - GAP - 8)
             for scroll in (self.cards_scroll, self.usage_scroll):
-                content = scroll.get_child().measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
+                content = scroll.get_child().measure(Gtk.Orientation.VERTICAL, PANEL_W - px(24))[1]
                 scroll.set_min_content_height(max(40, min(content, PANEL_H, room - 40)))
             panel_h = self.panel.measure(Gtk.Orientation.VERTICAL, PANEL_W)[1]
             panel_x = max(8, min(center - PANEL_W / 2, width - PANEL_W - 8))
             panel_y = bar_y - GAP - panel_h if above else bar_y + TOOLBAR_H + GAP
-            self.fixed.move(self.panel, panel_x, max(0, panel_y))
+            self.panel_height = panel_h
+            self._place(self.panel, panel_x, max(0, panel_y))
         for flea in self.fleas:
-            self.fixed.move(flea['widget'], flea['x'] - 22, flea['y'] - 32)
+            self._place(flea['widget'], flea['x'] - px(22), flea['y'] - px(32))
         GLib.idle_add(self.update_input_region)
+
+    # ---- animation -------------------------------------------------------
+    def _place(self, widget, x, y):
+        """Position a Fixed child, composing any running animation (offset and scale)."""
+        self.places[widget] = (x, y)
+        dy, scale, (ox, oy) = self.motion.get(widget, (0, 1, (0, 0)))
+        transform = Gsk.Transform.new().translate(Graphene.Point().init(x, y + dy))
+        if scale != 1:
+            transform = transform.translate(Graphene.Point().init(ox, oy)).scale(scale, scale).translate(Graphene.Point().init(-ox, -oy))
+        self.fixed.set_child_transform(widget, transform)
+
+    def _tween(self, key, duration, step, done=None):
+        """Run step(eased progress) every frame for duration seconds; a new tween for key replaces the old."""
+        if key in self.tweens:
+            self.remove_tick_callback(self.tweens.pop(key))
+        if not self.settings['animations']:
+            step(1)
+            return done and done()
+        start = [None]
+
+        def tick(_widget, clock):
+            now = clock.get_frame_time() / 1e6
+            start[0] = start[0] or now
+            t = min(1, (now - start[0]) / duration)
+            step(EASE(t))
+            if t < 1:
+                return True
+            self.tweens.pop(key, None)
+            if done:
+                done()
+            return False
+        self.tweens[key] = self.add_tick_callback(tick)
+
+    def _motion(self, widget, opacity, dy, scale, origin):
+        widget.set_opacity(opacity)
+        self.motion[widget] = (dy, scale, origin)
+        if widget in self.places:
+            self._place(widget, *self.places[widget])
+
+    def _reveal(self, widget, visible, offset, scale_from, origin_bottom=False, duration=None):
+        """Fade and slide a widget in or out, like the Electron panel transitions."""
+        width = widget.get_width() or widget.measure(Gtk.Orientation.HORIZONTAL, -1)[1]
+        height = widget.get_height() or widget.measure(Gtk.Orientation.VERTICAL, width)[1]
+        origin = (width / 2, height if origin_bottom else 0)
+        if visible:
+            if not widget.get_visible():
+                self._motion(widget, 0, offset, scale_from, origin)
+                widget.set_visible(True)
+            self._tween(widget, duration or .23, lambda t: self._motion(widget, t, offset * (1 - t), scale_from + (1 - scale_from) * t, origin),
+                        lambda: self.motion.pop(widget, None))
+        elif widget.get_visible():
+            def finish():
+                widget.set_visible(False)
+                self._motion(widget, 1, 0, 1, origin)
+                self.motion.pop(widget, None)
+                self.update_input_region(force=True)
+            self._tween(widget, duration or .16, lambda t: self._motion(widget, 1 - t, offset * .65 * t, 1 - (1 - scale_from) * .75 * t, origin), finish)
 
     def _realized(self, *_):
         # GTK may reset the input region on resize, so reapply it after every frame.
@@ -371,16 +448,24 @@ class PetWindow(Gtk.ApplicationWindow):
         popover.popup()
 
     def update_controls(self):
-        self.toolbar.set_visible(bool(self.toolbar_pinned or self.panel_view) and not self.dragging)
-        self.mini_usage.set_visible(not self.toolbar.get_visible() and not self.dragging)
+        show = bool(self.toolbar_pinned or self.panel_view) and not self.dragging
         self.layout()
+        if show != self.toolbar_shown:
+            self.toolbar_shown = show
+            up = getattr(self, 'above', False)
+            self._reveal(self.toolbar, show, px(5) if up else -px(5), .94, origin_bottom=up, duration=.24 if show else .2)
+            self._reveal(self.mini_usage, not show and not self.dragging, 0, 1, duration=.2)
+        elif self.dragging:
+            self.mini_usage.set_visible(False)
+        elif not show and not self.mini_usage.get_visible():
+            self._reveal(self.mini_usage, True, 0, 1, duration=.2)
 
     def apply_settings(self, value):
         """Apply settings edited elsewhere, keeping the pet's centre fixed when it is resized."""
         old_w, old_h = self.pet_size()
         self.settings = value
         new_w, new_h = self.pet_size()
-        self.sprite.resize(value['petScale'])
+        self.sprite.resize(value['petScale'] * UI)
         self.pet_x += (old_w - new_w) / 2
         self.pet_y += (old_h - new_h) / 2
         self.toolbar_pinned = value['controls'] or bool(self.panel_view)
@@ -431,13 +516,28 @@ class PetWindow(Gtk.ApplicationWindow):
         self.last_cycle = time.monotonic()
         keys = [task_key(t) for t in tasks]
         index = keys.index(self.front_key) if self.front_key in keys else 0
-        self.front_key = keys[(index + (1 if dy > 0 else -1)) % len(keys)]
+        step = 1 if dy > 0 else -1
+        self.front_key = keys[(index + step) % len(keys)]
         self._force_paint()
+        front = self.cards.get_first_child()
+        if front:
+            # The new front card rises from the stack (Electron: 360ms, from 16px and 30% opacity).
+            def frame(t):
+                front.set_opacity(.3 + .7 * t)
+                front.set_margin_top(round(px(16) * (1 - t)) if step > 0 else 0)
+                front.set_margin_bottom(round(px(16) * (1 - t)) if step < 0 else 0)
+            self._tween('cycle', .36, frame)
         return True
 
     def open_panel(self, view):
+        was = self.panel_view
         self.panel_view = view
-        self.panel.set_visible(bool(view))
+        if view:
+            self.panel.set_visible(True)
+            self.layout()
+        if bool(view) != bool(was) or (view and self.panel.get_opacity() < 1):
+            up = getattr(self, 'above', False)
+            self._reveal(self.panel, bool(view), -px(10) if up else px(10), .96, origin_bottom=up)
         if view:
             self.stack.set_visible_child_name(view)
             self.toolbar_pinned = True
@@ -501,7 +601,7 @@ class PetWindow(Gtk.ApplicationWindow):
         if not self.stack_expanded:
             # Cards behind the front one peek out underneath it, in their provider colours.
             for depth, task in enumerate(tasks[1:3], 1):
-                self.cards.append(Gtk.Box(css_classes=['peek', f'peek{depth}', _card_css(task)], can_target=False))
+                self.cards.append(Gtk.Box(css_classes=['peek', f'peek{depth}', _card_css(task)], can_target=False, opacity=1 - .2 * depth))
 
     def _card(self, task):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['card', _card_css(task)], spacing=2)

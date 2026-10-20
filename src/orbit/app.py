@@ -1,6 +1,7 @@
 """Application entry point: single instance, actions and the Win+Y summon socket."""
 import json
 import os
+import re
 import socket
 import sys
 import time
@@ -14,7 +15,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from .paths import ROOT  # noqa: E402
 from .tray import Tray  # noqa: E402
-from .window import PetWindow  # noqa: E402
+from .window import PetWindow, set_ui_scale  # noqa: E402
 
 
 def control_path():
@@ -35,8 +36,15 @@ class OrbitApp(Gtk.Application):
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
+        # Scale the stylesheet with the UI factor (see window.set_ui_scale).
+        monitors = Gdk.Display.get_default().get_monitors()
+        scale = max((monitors.get_item(i).get_scale() for i in range(monitors.get_n_items())), default=1)
+        factor = float(os.environ.get('ORBIT_UI_SCALE') or 1 / scale)
+        set_ui_scale(factor)
+        text = (ROOT / 'src/orbit/style.css').read_text()
+        text = re.sub(r'(-?\d+(?:\.\d+)?)px', lambda m: '%gpx' % round(float(m[1]) * factor, 2), text)
         css = Gtk.CssProvider()
-        css.load_from_path(str(ROOT / 'src/orbit/style.css'))
+        css.load_from_string(text)
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_USER + 1)
         self.hold()
         self._listen()
