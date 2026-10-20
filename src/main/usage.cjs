@@ -13,4 +13,14 @@ function normalizeAgyUsage(payload){
  }
  return windows.length?{time:payload.time,windows}:null;
 }
-module.exports={normalizeUsage,normalizeAgyUsage};
+function normalizeClaudeUsage(payload,time=Date.now()){
+ if(!payload||!Number.isFinite(time))return null;
+ const windows=[];
+ for(const [key,label] of [['five_hour','Session'],['seven_day','Weekly'],['seven_day_sonnet','Sonnet · Week'],['seven_day_opus','Opus · Week']]){
+  const bucket=payload[key];if(!bucket||!Number.isFinite(bucket.utilization))continue;
+  const reset=typeof bucket.resets_at==='string'?Date.parse(bucket.resets_at):NaN;
+  windows.push({label,remaining:Math.round(Math.max(0,Math.min(100,100-bucket.utilization))),reset:Number.isFinite(reset)?reset:null});
+ }
+ return windows.length?{time,windows}:null;
+}
+module.exports={normalizeUsage,normalizeAgyUsage,normalizeClaudeUsage};

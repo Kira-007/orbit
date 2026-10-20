@@ -16,9 +16,10 @@ const {createRandomFleas}=require('./random-fleas.cjs');
 const {listenForSummon}=require('./summon-control.cjs');
 const {Store,PROVIDERS}=require('./store.cjs');const {Activity}=require('./activity.cjs');
 const {agyUsage,codexUsage}=require('./fresh-usage.cjs');
+const {claudeUsage}=require('./claude-usage.cjs');
 app.setName('Orbit Agent Pet');app.commandLine.appendSwitch('class','agent-pet');
 if(!app.requestSingleInstanceLock())app.quit();
-let canvasHeight=null,startupAnchor=null;let win,settingsWin,tray,timer,pointerTimer,drag=null,expanded=false,hitRegions=[],ignoring=false;const store=new Store();let activity,layout={petX:112,petY:0,above:false};
+let canvasHeight=null,startupAnchor=null;let win,settingsWin,tray,timer,usageTimer,pointerTimer,drag=null,expanded=false,hitRegions=[],ignoring=false;const store=new Store();let activity,layout={petX:112,petY:0,above:false};
 const sizes={closed:{width:160,height:158},open:{width:374,height:630}};
 const stateDir=path.join(process.env.XDG_STATE_HOME||path.join(app.getPath('home'),'.local','state'),'agent-pet');
 const settingsFile=path.join(stateDir,'settings.json');let preferences=null;
@@ -73,8 +74,8 @@ function summonPet(point){
 let quotaRefresh=null;
 function refreshUsage(){
  if(quotaRefresh)return quotaRefresh;
- store.usageStatus={codex:'refreshing',antigravity:'refreshing',claude:'unavailable'};send();
- quotaRefresh=Promise.allSettled([['codex',codexUsage],['antigravity',agyUsage]].map(async([provider,read])=>{try{store.usage[provider]=await read();store.usageStatus[provider]='live';}catch{store.usageStatus[provider]='failed';}send();})).finally(()=>quotaRefresh=null);return quotaRefresh;
+ store.usageStatus={codex:'refreshing',antigravity:'refreshing',claude:'refreshing'};send();
+ quotaRefresh=Promise.allSettled([['codex',codexUsage],['antigravity',agyUsage],['claude',claudeUsage]].map(async([provider,read])=>{try{store.usage[provider]=await read();store.usageStatus[provider]='live';}catch{store.usageStatus[provider]='failed';}send();})).finally(()=>quotaRefresh=null);return quotaRefresh;
 }
 function send(){if(win&&!win.isDestroyed())win.webContents.send('state',store.snapshot());}
 let inputShape=null,inputShapeReady=false,hyprInput=null;
@@ -130,7 +131,7 @@ app.whenReady().then(()=>{
  summonControl=listenForSummon(summonPet);
  win.loadFile(path.join(__dirname,'../renderer/index.html'));win.once('ready-to-show',()=>{startInputShape();win.showInactive();randomFleas.start();});
  win.setIgnoreMouseEvents(true,{forward:true});ignoring=true;execFile('hyprctl',['monitors','-j'],{timeout:1000},(err,out)=>{if(!err)try{hyprMonitors=JSON.parse(out);}catch{}});pointerTimer=setInterval(pointerPolicy,60);
- activity=new Activity(store,stateDir);activity.poll();refreshUsage();timer=setInterval(()=>{activity.poll();send();},1000);
+ activity=new Activity(store,stateDir);activity.poll();refreshUsage();usageTimer=setInterval(refreshUsage,5*60000);timer=setInterval(()=>{activity.poll();send();},1000);
  const icon=nativeImage.createFromPath(path.join(__dirname,'../../assets/icons/tray.png'));if(!icon.isEmpty()){tray=new Tray(icon);tray.setToolTip('Orbit · your agent companion');tray.setContextMenu(Menu.buildFromTemplate([{label:'Show companion',click:()=>win.show()},{label:'Hide companion',click:()=>{fleaQueue.clear();win.hide();}},{type:'separator'},{label:'Quit Orbit',click:()=>app.quit()}]));tray.on('click',()=>{if(win.isVisible()){fleaQueue.clear();win.hide();}else win.show();});}
 });
 ipcMain.on('ready',(_,viewport)=>{if(Number.isFinite(viewport?.height)&&viewport.height>0)canvasHeight=viewport.height;if(startupAnchor){const bounds=win.getBounds();layout.petY=startupAnchor.y-bounds.y;startupAnchor=null;}layout.petY=Math.max(0,Math.min(layout.petY,(canvasHeight||win.getBounds().height)-129*(preferences?.petScale||1)));send();win.webContents.send('layout',layout);});
@@ -218,4 +219,4 @@ ipcMain.handle('pick-sprite-sheet',async event=>{
 });
 ipcMain.on('settings-close' ,()=>settingsWin?.close());
 ipcMain.on('reset-position',()=>{fleaQueue.clear();const area=screen.getPrimaryDisplay().workArea;movePet(area.x+area.width-210,area.y+area.height-250);save();});
-ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{randomFleas.stop();fleaQueue.clear();summonControl?.close();save();clearInterval(timer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());
+ipcMain.on('quit' ,()=>app.quit());app.on('before-quit',()=>{randomFleas.stop();fleaQueue.clear();summonControl?.close();save();clearInterval(timer);clearInterval(usageTimer);clearInterval(pointerTimer);clearInterval(dragTimer);inputShape?.stdin.end();hyprInput?.close();});app.on('window-all-closed',()=>app.quit());

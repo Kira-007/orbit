@@ -35,7 +35,7 @@ Use `--no-autostart` to omit startup. Existing pets share the same per-user `age
 
 Codex activity is read from local session logs. To install passive Claude and AGY task hooks, run `python3 install.py --hooks`, then restart those agents. Hooks are merged with existing configuration and backed up. AGY hook support depends on the CLI version; its terminal message delivery remains experimental. Missing executables and unsupported Desktop versions report errors.
 
-Usage refreshes at startup and when opened: Codex uses its installed app-server account API; AGY uses its CLI `/usage` command. Authentication must already be configured in each agent. Claude quota retrieval is not implemented. Offline or failed readings are indicated rather than presented as fresh.
+Usage refreshes at startup, when opened, and every five minutes: Codex uses its installed app-server account API; AGY uses its CLI `/usage` command; Claude reads subscription quota using the existing Claude Code sign-in (`CLAUDE_CONFIG_DIR` is supported). Claude requests are cached for one minute and respect rate-limit cooldowns. Authentication must already be configured in each agent. Offline or failed readings are indicated rather than presented as fresh.
 
 Set `ORBIT_ELECTRON` to an alternative Electron executable. Set `ORBIT_CODEX_DESKTOP` to your Desktop executable path if it is neither `codex-desktop` nor `chatgpt`. These must also be present in the Hyprland login environment for autostart.
 
