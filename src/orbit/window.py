@@ -576,6 +576,10 @@ class PetWindow(Gtk.ApplicationWindow):
         config = config or sheets.get(state) or sheets.get('idle')
         original = -1 if (config or {}).get('facing', pet.get('facing')) == 'left' else 1
         self.sprite.set_sprite(config, self.settings['animations'], self.direction * original < 0)
+        # A new sheet has different bounds; re-anchor the toolbar now rather than on the next click.
+        if self.sprite.visible_bounds() != getattr(self, '_anchored_bounds', None):
+            self._anchored_bounds = self.sprite.visible_bounds()
+            self.layout()
 
     # ---- panels ------------------------------------------------------------
     def _toggle_view(self, view):
