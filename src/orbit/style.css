@@ -8,7 +8,7 @@ window.orbit .toolbar { background: none; padding: 4px; }  /* the drawn bar behi
 window.orbit .toolbar button { min-width: 40px; min-height: 30px; border-radius: 15px; transition: background 160ms ease; }
 window.orbit .toolbar button:hover { background: #ffffff0c; }
 window.orbit .toolbar button image { -gtk-icon-size: 19px; }
-window.orbit .badge { background: #54b879; color: #fff; font-size: 8px; font-weight: 600; border: 2px solid #242022; border-radius: 10px; min-width: 12px; min-height: 12px; padding: 0 2px; margin: 0 3px 0 0; }
+window.orbit .badge { background: #54b879; color: #fff; font-size: 9px; font-weight: 700; border: 2px solid #242022; border-radius: 10px; min-width: 13px; min-height: 13px; padding: 0 2px; }
 window.orbit .usage-strip { min-height: 6px; border-radius: 12px; background: #eeeeee; }
 window.orbit .usage-strip.claude { background: #ee9877; }
 window.orbit .usage-strip.antigravity { background: #8bdba4; }
@@ -22,7 +22,7 @@ window.orbit .card.codex-desktop { background: #626262; }
 window.orbit .card.codex-cli { background: #303030; }
 window.orbit .card.agy { background: #286b40; }
 window.orbit .card + .card { margin-top: 8px; }
-window.orbit .card .state { font-size: 8px; color: #fff; letter-spacing: 0.3px; }
+window.orbit .card .state { font-size: 9px; font-weight: 600; color: #fff; letter-spacing: 0.4px; min-height: 20px; }
 window.orbit .card .dismiss { min-width: 20px; min-height: 20px; border-radius: 10px; background: #00000022; color: #ffffffb0; font-size: 14px; }
 window.orbit .card .dismiss:hover { background: #ffffff20; color: #fff; }
 window.orbit .card .card-title { font-size: 12px; font-weight: 600; color: #fff; margin-right: 24px; }

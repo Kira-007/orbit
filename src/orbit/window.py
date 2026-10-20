@@ -166,16 +166,18 @@ class PetWindow(Gtk.ApplicationWindow):
         self.sprite.add_controller(menu)
 
     def _build_toolbar(self):
-        self.toolbar = Gtk.Box(css_classes=['toolbar'], halign=Gtk.Align.CENTER, homogeneous=True)
+        self.toolbar = Gtk.Box(css_classes=['toolbar'], halign=Gtk.Align.CENTER, homogeneous=True, overflow=Gtk.Overflow.VISIBLE)
         self.toolbar.set_size_request(TOOLBAR_W, TOOLBAR_H)
         for icon, tip, view in (('chat', 'Message a conversation', 'chat'), ('usage', 'Usage remaining', 'usage'),
                                 ('inbox', 'Task notifications', 'cards')):
             button = Gtk.Button(child=Gtk.Image.new_from_file(str(ICONS / f'{icon}.svg')), tooltip_text=tip)
             button.connect('clicked', lambda _b, v=view: self._toggle_view(v))
             if view == 'cards':
-                overlay = Gtk.Overlay(child=button)
+                overlay = Gtk.Overlay(child=button, overflow=Gtk.Overflow.VISIBLE)
                 self.badge = Gtk.Label(css_classes=['badge'], halign=Gtk.Align.END, valign=Gtk.Align.START, visible=False, can_target=False)
                 overlay.add_overlay(self.badge)
+                overlay.set_clip_overlay(self.badge, False)
+                overlay.connect('get-child-position', self._badge_position)
                 self.toolbar.append(overlay)
             else:
                 self.toolbar.append(button)
@@ -191,6 +193,12 @@ class PetWindow(Gtk.ApplicationWindow):
         self.quota_fill = (0, None)
         self.fixed.put(self.mini_usage, 0, 0)
         self.mini_usage.insert_before(self.fixed, self.toolbar)
+
+    def _badge_position(self, overlay, widget, rect):
+        """Sit the badge on the button's top-right corner, overhanging the toolbar edge like the original."""
+        width, height = widget.measure(Gtk.Orientation.HORIZONTAL, -1)[1], widget.measure(Gtk.Orientation.VERTICAL, -1)[1]
+        rect.x, rect.y, rect.width, rect.height = overlay.get_width() - width + px(1), -px(7), width, height
+        return True
 
     def _build_panel(self):
         self.panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['panel'], visible=False)
@@ -664,6 +672,8 @@ class PetWindow(Gtk.ApplicationWindow):
             self.layout()
 
     def _paint_cards(self, tasks):
+        # The collapsed stack never scrolls (its rise animation briefly overflows); the full list may.
+        self.cards_scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC if self.stack_expanded else Gtk.PolicyType.NEVER)
         while child := self.cards.get_first_child():
             self.cards.remove(child)
         if not tasks:
