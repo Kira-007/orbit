@@ -18,8 +18,9 @@ gi.require_version('Gdk', '4.0')
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gtk4LayerShell', '1.0')
 gi.require_version('Gsk', '4.0')
+gi.require_version('GdkPixbuf', '2.0')
 gi.require_version('Graphene', '1.0')
-from gi.repository import Gdk, Gio, GLib, Graphene, Gsk, Gtk, Gtk4LayerShell as LayerShell, Pango  # noqa: E402
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Graphene, Gsk, Gtk, Gtk4LayerShell as LayerShell, Pango  # noqa: E402
 
 from . import settings as prefs  # noqa: E402
 from .activity import Activity  # noqa: E402
@@ -39,6 +40,7 @@ PANEL_W, PANEL_H, TOOLBAR_W, TOOLBAR_H, GAP = 358, 430, 132, 40, 8
 ICONS = ROOT / 'assets/icons/ui'
 MINI_W, MINI_H = 32, 6
 EASE = lambda t: 1 - (1 - t) ** 3  # noqa: E731  close to cubic-bezier(.22,.75,.25,1)
+EASE_IN_OUT = lambda t: 4 * t ** 3 if t < .5 else 1 - (-2 * t + 2) ** 3 / 2  # noqa: E731
 
 
 def set_ui_scale(factor):
@@ -63,6 +65,34 @@ def _usage_label(label):
 def _age(t):
     sec = max(0, (now_ms() - t) // 1000)
     return 'just now' if sec < 60 else f'{sec // 60}m ago' if sec < 3600 else f'{sec // 3600}h ago'
+
+
+class FleaView(Gtk.Picture):
+    """A flea marker that plays animated WebP/GIF files frame by frame."""
+
+    def __init__(self, path):
+        super().__init__(content_fit=Gtk.ContentFit.CONTAIN)
+        try:
+            self.animation = GdkPixbuf.PixbufAnimation.new_from_file(str(path))
+        except GLib.Error:
+            self.animation = None
+            self.set_filename(str(path))
+            return
+        self.iter = self.animation.get_iter(None)
+        self._show()
+
+    def _show(self):
+        self.set_paintable(Gdk.Texture.new_for_pixbuf(self.iter.get_pixbuf()))
+        delay = self.iter.get_delay_time()
+        if delay > 0 and not self.animation.is_static_image():
+            GLib.timeout_add(delay, self._advance)
+
+    def _advance(self):
+        if self.get_parent() is None:
+            return False
+        self.iter.advance(None)
+        self._show()
+        return False
 
 
 def _card_css(task):
@@ -107,6 +137,10 @@ class PetWindow(Gtk.ApplicationWindow):
 
         self._region_key = None
         self.connect('realize', self._realized)
+        try:
+            self.store.usage.update(json.loads((STATE_DIR / 'usage-cache.json').read_text()))
+        except (OSError, ValueError):
+            pass
         self.activity.poll()
         self.refresh_state()
         GLib.timeout_add(1000, self._poll)
@@ -148,10 +182,11 @@ class PetWindow(Gtk.ApplicationWindow):
         self.toolbar.set_visible(False)
         self.fixed.put(self.toolbar, 0, 0)
         # The toolbar rests as a small bar that shows the selected quota; it opens on click.
-        self.mini_usage = Gtk.Box(css_classes=['mini-usage'], can_target=False)
-        self.mini_usage.set_size_request(MINI_W, MINI_H)
-        self.mini_fill = Gtk.Box(css_classes=['usage-strip'], halign=Gtk.Align.START)
-        self.mini_usage.append(self.mini_fill)
+        # Drawn rather than resized, so the morph never triggers a relayout.
+        self.mini_usage = Gtk.DrawingArea(can_target=False)
+        self.mini_usage.set_size_request(TOOLBAR_W, TOOLBAR_H)
+        self.mini_usage.set_draw_func(self._draw_bar)
+        self.quota_fill = (0, None)
         self.fixed.put(self.mini_usage, 0, 0)
 
     def _build_panel(self):
@@ -300,11 +335,7 @@ class PetWindow(Gtk.ApplicationWindow):
         center = self.pet_x + pw / 2
         self._place(self.toolbar, center - TOOLBAR_W / 2, bar_y)
         # The resting bar morphs into the toolbar: morph 0 is the 32x6 bar, 1 the full toolbar.
-        t = self.morph
-        w, h = MINI_W + (TOOLBAR_W - MINI_W) * t, MINI_H + (TOOLBAR_H - MINI_H) * t
-        rest_y = bar_y + (TOOLBAR_H - MINI_H if above else px(4))
-        self.mini_usage.set_size_request(round(w), round(h))
-        self._place(self.mini_usage, center - w / 2, rest_y + (bar_y - rest_y) * t)
+        self._place(self.mini_usage, center - TOOLBAR_W / 2, bar_y)
         if self.panel.get_visible():
             # Size the scrolled views to their content, capped at the room on that side of the pet.
             room = (bar_y - GAP - 8) if above else (height - bar_y - TOOLBAR_H - GAP - 8)
@@ -332,7 +363,7 @@ class PetWindow(Gtk.ApplicationWindow):
             transform = transform.translate(Graphene.Point().init(ox, oy)).scale(scale, scale).translate(Graphene.Point().init(-ox, -oy))
         self.fixed.set_child_transform(widget, transform)
 
-    def _tween(self, key, duration, step, done=None):
+    def _tween(self, key, duration, step, done=None, ease=None):
         """Run step(eased progress) at ~60 fps for duration seconds; a new tween for key replaces the old.
 
         A timer rather than a tick callback: the frame clock can pause (e.g. during screencopy).
@@ -346,14 +377,14 @@ class PetWindow(Gtk.ApplicationWindow):
 
         def frame():
             t = min(1, (time.monotonic() - start) / duration)
-            step(EASE(t))
+            step((ease or EASE)(t))
             if t < 1:
                 return True
             self.tweens.pop(key, None)
             if done:
                 done()
             return False
-        self.tweens[key] = GLib.timeout_add(16, frame)
+        self.tweens[key] = GLib.timeout_add(8, frame, priority=GLib.PRIORITY_HIGH_IDLE)
 
     def _motion(self, widget, opacity, dy, scale, origin):
         widget.set_opacity(opacity)
@@ -465,25 +496,23 @@ class PetWindow(Gtk.ApplicationWindow):
 
         def grow(t):
             self.morph = t
-            self.layout()
+            self.mini_usage.queue_draw()
         if show:
             # The bar grows into the toolbar, then the buttons fade in.
-            self.mini_fill.set_visible(False)
-
             def opened():
                 self.mini_usage.set_visible(False)
                 self.toolbar.set_opacity(0)
                 self.toolbar.set_visible(True)
                 self._tween(self.toolbar, .12, self.toolbar.set_opacity)
-            self._tween('morph', .24, lambda t: grow(self.morph + (1 - self.morph) * t), opened)
+            start = self.morph
+            self._tween('morph', .26, lambda t: grow(start + (1 - start) * t), opened, ease=EASE_IN_OUT)
         else:
             # The buttons fade out, then the toolbar shrinks back into the bar.
             def collapse():
                 self.toolbar.set_visible(False)
                 self.mini_usage.set_visible(True)
                 start = self.morph
-                self._tween('morph', .22, lambda t: grow(start * (1 - t)),
-                            lambda: (self.mini_fill.set_visible(bool(self.settings['usageBar'])), self.update_input_region(True)))
+                self._tween('morph', .24, lambda t: grow(start * (1 - t)), lambda: self.update_input_region(True), ease=EASE_IN_OUT)
             self._tween(self.toolbar, .1, lambda t: self.toolbar.set_opacity(1 - t), collapse)
 
     def apply_settings(self, value):
@@ -650,15 +679,40 @@ class PetWindow(Gtk.ApplicationWindow):
         self._cards_signature = None
         self.paint()
 
+    def _draw_bar(self, _area, ctx, width, height):
+        """The resting quota bar, interpolated towards the toolbar's shape by self.morph."""
+        t = self.morph
+        w, h = MINI_W + (width - MINI_W) * t, MINI_H + (height - MINI_H) * t
+        rest = height - MINI_H if getattr(self, 'above', False) else px(4)
+        x, y = (width - w) / 2, rest * (1 - t)
+        radius = min(h / 2, px(12))
+
+        def rounded(rx, rw):
+            ctx.new_sub_path()
+            ctx.arc(rx + rw - radius, y + radius, radius, -math.pi / 2, 0)
+            ctx.arc(rx + rw - radius, y + h - radius, radius, 0, math.pi / 2)
+            ctx.arc(rx + radius, y + h - radius, radius, math.pi / 2, math.pi)
+            ctx.arc(rx + radius, y + radius, radius, math.pi, 3 * math.pi / 2)
+            ctx.close_path()
+        ctx.set_source_rgb(0x24 / 255, 0x20 / 255, 0x22 / 255)
+        rounded(x, w)
+        ctx.fill()
+        value, provider = self.quota_fill
+        if provider and value and t < 1:
+            color = USAGE_COLORS[provider]
+            ctx.set_source_rgba(*(int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)), 1 - t)
+            rounded(x, max(2 * radius, w * value / 100))
+            ctx.fill()
+
     def _paint_usage_strip(self):
         bar = self.settings['usageBar']
         quota = bar and next((w for w in (self.store.usage.get(bar['provider']) or {}).get('windows', []) if w['label'] == bar['label']), None)
         valid = quota and (not quota.get('reset') or quota['reset'] > now_ms())
         value = max(0, min(100, quota['remaining'])) if valid else 0
-        self.mini_fill.set_visible(bool(bar) and self.morph == 0)
-        self.mini_fill.set_size_request(round(MINI_W * value / 100), MINI_H)
-        for provider in USAGE_COLORS:
-            (self.mini_fill.add_css_class if bar and provider == bar['provider'] else self.mini_fill.remove_css_class)(provider)
+        fill = (value, bar['provider'] if bar else None)
+        if fill != self.quota_fill:
+            self.quota_fill = fill
+            self.mini_usage.queue_draw()
 
     def _paint_usage(self):
         signature = json.dumps([self.store.usage, self.store.usage_status, self.settings['usageBar']])
@@ -673,12 +727,14 @@ class PetWindow(Gtk.ApplicationWindow):
             heading = Gtk.Box()
             heading.append(Gtk.Label(label=name, xalign=0, hexpand=True, css_classes=['usage-name']))
             if status in ('refreshing', 'failed'):
+                error = getattr(self, 'usage_errors', {}).get(key)
                 heading.append(Gtk.Label(label='↻' if status == 'refreshing' else '!', css_classes=['usage-indicator'],
-                                         tooltip_text='Refreshing quota' if status == 'refreshing' else 'Refresh failed; showing previous values'))
+                                         tooltip_text='Refreshing quota' if status == 'refreshing' else (error or 'Refresh failed') + '; showing previous values'))
             card.append(heading)
             snapshot = self.store.usage.get(key)
             if not snapshot:
-                card.append(Gtk.Label(label='Loading…' if status == 'refreshing' else 'Unavailable', xalign=0, css_classes=['usage-note']))
+                note = 'Loading…' if status == 'refreshing' else (getattr(self, 'usage_errors', {}).get(key) or 'Unavailable')
+                card.append(Gtk.Label(label=note, xalign=0, wrap=True, css_classes=['usage-note']))
             for window in (snapshot or {}).get('windows', []):
                 expired = window.get('reset') and window['reset'] <= now_ms()
                 selected = self.settings['usageBar'] == {'provider': key, 'label': window['label']}
@@ -711,26 +767,32 @@ class PetWindow(Gtk.ApplicationWindow):
         if getattr(self, '_usage_refreshing', False):
             return
         self._usage_refreshing = True
+        self.usage_errors = getattr(self, 'usage_errors', {})
         readers = {'codex': codex_usage, 'antigravity': agy_usage, 'claude': claude_usage}
         self.store.usage_status = {k: 'refreshing' for k in readers}
         remaining = [len(readers)]
 
-        def done(provider, usage):
+        def done(provider, usage, error=None):
+            self.usage_errors[provider] = error
             if usage:
                 self.store.usage[provider] = usage
             self.store.usage_status[provider] = 'live' if usage else 'failed'
             remaining[0] -= 1
             if not remaining[0]:
                 self._usage_refreshing = False
+                try:
+                    (STATE_DIR / 'usage-cache.json').write_text(json.dumps(self.store.usage))
+                except OSError:
+                    pass
             self.paint()
             return False
 
         def work(provider, read):
             try:
-                usage = read()
-            except Exception:
-                usage = None
-            GLib.idle_add(done, provider, usage)
+                usage, error = read(), None
+            except Exception as failure:
+                usage, error = None, str(failure)
+            GLib.idle_add(done, provider, usage, error)
         for provider, read in readers.items():
             threading.Thread(target=work, args=(provider, read), daemon=True).start()
 
@@ -817,10 +879,11 @@ class PetWindow(Gtk.ApplicationWindow):
         if len(self.fleas) >= 32 or self.dragging:
             return False
         flea_file = next((f for f in (STATE_DIR / 'sprites/flea/flea-animated.webp', STATE_DIR / 'sprites/flea/Flea.png') if f.exists()), None)
-        widget = Gtk.Picture.new_for_filename(str(flea_file)) if flea_file else Gtk.Label(label='🪳')
-        widget.set_size_request(44, 64)
+        widget = FleaView(flea_file) if flea_file else Gtk.Label(label='🪳')
+        widget.set_size_request(px(44), px(64))
         widget.set_can_target(False)
-        self.fixed.put(widget, x - 22, y - 32)
+        self.fixed.put(widget, 0, 0)
+        self._place(widget, x - px(22), y - px(32))
         self.fleas.append({'x': x, 'y': y, 'widget': widget})
         self.set_visible(True)
         if not self.run:
@@ -836,11 +899,14 @@ class PetWindow(Gtk.ApplicationWindow):
 
     def _collect_flea(self):
         if self.fleas:
-            self.fixed.remove(self.fleas.pop(0)['widget'])
+            widget = self.fleas.pop(0)['widget']
+            self.places.pop(widget, None)
+            self.fixed.remove(widget)
         self._next_flea()
 
     def clear_fleas(self):
         for flea in self.fleas:
+            self.places.pop(flea['widget'], None)
             self.fixed.remove(flea['widget'])
         self.fleas.clear()
         self.stop_run()

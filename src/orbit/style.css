@@ -9,7 +9,6 @@ window.orbit .toolbar button { min-width: 40px; min-height: 30px; border-radius:
 window.orbit .toolbar button:hover { background: #ffffff0c; }
 window.orbit .toolbar button image { -gtk-icon-size: 19px; }
 window.orbit .badge { background: #54b879; color: #fff; font-size: 8px; font-weight: 600; border: 2px solid #242022; border-radius: 10px; min-width: 12px; min-height: 12px; padding: 0 2px; margin: 0 3px 0 0; }
-window.orbit .mini-usage { background: #242022; border-radius: 12px; min-height: 6px; }
 window.orbit .usage-strip { min-height: 6px; border-radius: 12px; background: #eeeeee; }
 window.orbit .usage-strip.claude { background: #ee9877; }
 window.orbit .usage-strip.antigravity { background: #8bdba4; }

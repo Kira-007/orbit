@@ -126,17 +126,33 @@ def codex_usage():
 class ClaudeUsage:
     """Reads Claude Code quota via the OAuth usage endpoint, cached and rate-limit aware."""
 
-    def __init__(self):
+    def __init__(self, state_file=None):
         config = os.environ.get('CLAUDE_CONFIG_DIR') or str(Path.home() / '.claude')
         self.credentials = Path(config) / '.credentials.json'
+        # Cache and cooldown survive restarts, so relaunching never re-triggers a 429.
+        self.state_file = state_file
         self.cached, self.retry_after = None, 0
+        try:
+            saved = json.loads(state_file.read_text())
+            self.cached, self.retry_after = saved.get('cached'), float(saved.get('retryAfter') or 0)
+        except (AttributeError, OSError, ValueError, TypeError):
+            pass
+
+    def _save(self):
+        if not self.state_file:
+            return
+        try:
+            self.state_file.parent.mkdir(parents=True, exist_ok=True)
+            self.state_file.write_text(json.dumps({'cached': self.cached, 'retryAfter': self.retry_after}))
+        except OSError:
+            pass
 
     def __call__(self):
         now = time.time() * 1000
         if self.cached and now - self.cached['time'] < 60000:
             return self.cached
         if now < self.retry_after:
-            raise RuntimeError('Claude quota refresh is cooling down')
+            raise RuntimeError('Claude rate-limited the quota check; retrying in %d min' % max(1, round((self.retry_after - now) / 60000)))
         try:
             token = json.loads(self.credentials.read_text())['claudeAiOauth']['accessToken']
         except (OSError, ValueError, KeyError, TypeError):
@@ -155,7 +171,8 @@ class ClaudeUsage:
                 except (TypeError, ValueError):
                     seconds = 300
                 self.retry_after = now + max(60, min(900, seconds)) * 1000
-                raise RuntimeError('Claude quota refresh rate limited')
+                self._save()
+                raise RuntimeError('Claude rate-limited the quota check; retrying in %d min' % max(1, round(seconds / 60)))
             raise RuntimeError('Claude Code sign-in needs refreshing' if error.code in (401, 403) else 'Claude quota refresh failed')
         except (OSError, ValueError):
             raise RuntimeError('Claude quota refresh failed')
@@ -163,7 +180,8 @@ class ClaudeUsage:
         if not usage:
             raise RuntimeError('Claude did not return quota data')
         self.cached = usage
+        self._save()
         return usage
 
 
-claude_usage = ClaudeUsage()
+claude_usage = ClaudeUsage(Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'agent-pet/claude-usage.json')
