@@ -13,6 +13,7 @@ import time
 import cairo
 import gi
 
+gi.require_version('Gdk', '4.0')
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gtk4LayerShell', '1.0')
 from gi.repository import Gdk, Gio, GLib, Gtk, Gtk4LayerShell as LayerShell, Pango  # noqa: E402
@@ -40,6 +41,7 @@ class PetWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title='Orbit Agent Pet')
         self.add_css_class('orbit')
+        self.remove_css_class('background')
         self.settings = prefs.load()
         self.store, self.feed = Store(), NotificationFeed()
         self.activity = Activity(self.store, STATE_DIR)
@@ -77,17 +79,20 @@ class PetWindow(Gtk.ApplicationWindow):
         self.refresh_usage()
         GLib.timeout_add_seconds(300, lambda: self.refresh_usage() or True)
         self._arm_random_flea()
+        self.update_controls()
 
     # ---- construction -------------------------------------------------
     def _build_pet(self):
         self.sprite = SpriteView()
         self.sprite.resize(self.settings['petScale'])
         self.fixed.put(self.sprite, 0, 0)
-        drag = Gtk.GestureDrag()
+        # Track the drag on the fixed surface, whose coordinates don't move with the pet.
+        drag = Gtk.GestureDrag(button=1)
         drag.connect('drag-begin', self._drag_begin)
         drag.connect('drag-update', self._drag_update)
         drag.connect('drag-end', self._drag_end)
-        self.sprite.add_controller(drag)
+        self.fixed.add_controller(drag)
+        self.drag_origin = None
         menu = Gtk.GestureClick(button=3)
         menu.connect('pressed', self._context_menu)
         self.sprite.add_controller(menu)
@@ -251,12 +256,20 @@ class PetWindow(Gtk.ApplicationWindow):
         return False
 
     # ---- pet interaction ------------------------------------------------
-    def _drag_begin(self, _gesture, _x, _y):
+    def _drag_begin(self, gesture, x, y):
+        pw, ph = self.pet_size()
+        if not (self.pet_x <= x < self.pet_x + pw and self.pet_y <= y < self.pet_y + ph):
+            gesture.set_state(Gtk.EventSequenceState.DENIED)
+            self.drag_origin = None
+            return
+        gesture.set_state(Gtk.EventSequenceState.CLAIMED)
         self.clear_fleas()
         self.drag_origin, self.drag_moved = (self.pet_x, self.pet_y), False
         self.drag_direction = DragDirection(0, self.direction)
 
     def _drag_update(self, _gesture, dx, dy):
+        if self.drag_origin is None:
+            return
         if not self.drag_moved and math.hypot(dx, dy) <= 4:
             return
         if not self.drag_moved:
@@ -268,6 +281,9 @@ class PetWindow(Gtk.ApplicationWindow):
         self.update_sprite()
 
     def _drag_end(self, _gesture, _dx, _dy):
+        if self.drag_origin is None:
+            return
+        self.drag_origin = None
         if self.drag_moved:
             self.walking = self.dragging = False
             self.save_position()
