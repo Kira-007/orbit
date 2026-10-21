@@ -726,10 +726,19 @@ class PetWindow(Gtk.ApplicationWindow):
         card.append(Gtk.Label(label=task['activity'] or 'Working on task', css_classes=['task-activity'], wrap=True,
                               wrap_mode=Pango.WrapMode.WORD_CHAR, xalign=0, lines=4, ellipsize=Pango.EllipsizeMode.END))
         card.set_tooltip_text(task['workspace'] or None)
-        click = Gtk.GestureClick()
-        click.connect('released', lambda *_a, t=task: self.open_task_chat(t))
+        click = Gtk.GestureClick(button=0)
+        click.connect('released', lambda g, *_a, t=task: self._card_clicked(g.get_current_button(), t))
         card.add_controller(click)
         return card
+
+    def _card_clicked(self, button, task):
+        # Left click opens up a collapsed stack; right click, or left click on the open list, goes to the chat.
+        if button == Gdk.BUTTON_PRIMARY and not self.stack_expanded:
+            self.stack_expanded = True
+            self._force_paint()
+            self.layout()
+        elif button in (Gdk.BUTTON_PRIMARY, Gdk.BUTTON_SECONDARY):
+            self.open_task_chat(task)
 
     def _force_paint(self):
         self._cards_signature = None
