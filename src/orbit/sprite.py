@@ -16,7 +16,7 @@ _frames_cache = {}
 
 
 def _frames(config):
-    """Split a sheet into frames; returns (surfaces, frame width, frame height, alpha top, alpha bottom)."""
+    """Split a sheet into frames; returns (surfaces, frame width, frame height, alpha top, alpha bottom, alpha left, alpha right)."""
     key = (config['sheet'], config['frames'], config['columns'])
     if key in _frames_cache:
         return _frames_cache[key]
@@ -24,7 +24,7 @@ def _frames(config):
     cols = config['columns']
     rows = -(-config['frames'] // cols)
     fw, fh = pixbuf.get_width() // cols, pixbuf.get_height() // rows
-    surfaces, top, bottom = [], fh, 0
+    surfaces, top, bottom, left, right = [], fh, 0, fw, 0
     for f in range(config['frames']):
         sub = pixbuf.new_subpixbuf((f % cols) * fw, (f // cols) * fh, fw, fh)
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, fw, fh)
@@ -34,10 +34,13 @@ def _frames(config):
         surface.flush()
         data, stride = surface.get_data(), surface.get_stride()
         for y in range(fh):
-            if max(bytes(data[y * stride + 3:y * stride + fw * 4:4])) > 8:
+            alpha = bytes(data[y * stride + 3:y * stride + fw * 4:4])
+            if max(alpha) > 8:
                 top, bottom = min(top, y), max(bottom, y + 1)
+                opaque = [x for x, a in enumerate(alpha) if a > 8]
+                left, right = min(left, opaque[0]), max(right, opaque[-1] + 1)
         surfaces.append(surface)
-    result = (surfaces, fw, fh, 0 if top == fh else top, bottom or fh)
+    result = (surfaces, fw, fh, 0 if top == fh else top, bottom or fh, 0 if left == fw else left, right or fw)
     _frames_cache[key] = result
     return result
 
@@ -84,10 +87,23 @@ class SpriteView(Gtk.DrawingArea):
         h = self.get_height() or BOX_H * self.scale
         if not self.loaded:
             return 0, h
-        _, fw, fh, top, bottom = self.loaded
+        _, fw, fh, top, bottom, _, _ = self.loaded
         ratio = min((self.get_width() or BOX_W * self.scale) / fw, h / fh)
         pad = (h - fh * ratio) / 2
         return pad + top * ratio, pad + bottom * ratio
+
+    def visible_rect(self):
+        """Opaque area of the current sheet as (x, y, w, h) in widget pixels; the whole widget for the robot."""
+        w, h = self.get_width() or BOX_W * self.scale, self.get_height() or BOX_H * self.scale
+        if not self.loaded:
+            return 0, 0, w, h
+        _, fw, fh, top, bottom, left, right = self.loaded
+        ratio = min(w / fw, h / fh)
+        x0 = (w - fw * ratio) / 2 + float(self.config.get('offsetX') or 0) * ratio
+        if self.flip:
+            left, right = fw - right, fw - left
+        y0 = (h - fh * ratio) / 2
+        return x0 + left * ratio, y0 + top * ratio, (right - left) * ratio, (bottom - top) * ratio
 
     def _draw(self, _area, ctx, width, height):
         if self.robot and not self.loaded:
@@ -95,7 +111,7 @@ class SpriteView(Gtk.DrawingArea):
             return draw_robot(ctx, self.robot, time.monotonic() - self.started if self.animate else 0)
         if not self.loaded:
             return
-        surfaces, fw, fh, _, _ = self.loaded
+        surfaces, fw, fh = self.loaded[:3]
         frame = int((time.monotonic() - self.started) * self.config['fps']) % len(surfaces) if self.animate else 0
         ratio = min(width / fw, height / fh)
         dw, dh = fw * ratio, fh * ratio

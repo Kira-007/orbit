@@ -470,6 +470,11 @@ class PetWindow(Gtk.ApplicationWindow):
             if not widget.get_visible() or not widget.get_mapped() or widget.get_opacity() == 0:
                 continue
             ok, bounds = widget.compute_bounds(self)
+            if ok and widget is self.sprite:
+                # Only the drawn pet takes clicks, not the transparent margin of its sheet.
+                x, y, w, h = self.sprite.visible_rect()
+                sx, sy = bounds.get_width() / max(1, self.sprite.get_width()), bounds.get_height() / max(1, self.sprite.get_height())
+                bounds = Graphene.Rect().init(bounds.get_x() + x * sx, bounds.get_y() + y * sy, w * sx, h * sy)
             if ok:
                 region.union(cairo.RectangleInt(int(bounds.get_x()), int(bounds.get_y()),
                                                 math.ceil(bounds.get_width()), math.ceil(bounds.get_height())))
@@ -594,8 +599,8 @@ class PetWindow(Gtk.ApplicationWindow):
         original = -1 if (config or {}).get('facing', pet.get('facing')) == 'left' else 1
         self.sprite.set_sprite(config, self.settings['animations'], self.direction * original < 0)
         # A new sheet has different bounds; re-anchor the toolbar now rather than on the next click.
-        if self.sprite.visible_bounds() != getattr(self, '_anchored_bounds', None):
-            self._anchored_bounds = self.sprite.visible_bounds()
+        if self.sprite.visible_rect() != getattr(self, '_anchored_bounds', None):
+            self._anchored_bounds = self.sprite.visible_rect()
             self.layout()
 
     # ---- panels ------------------------------------------------------------
