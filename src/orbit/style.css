@@ -66,10 +66,7 @@ window.orbit .usage-row .usage-value { font-size: 12px; font-weight: 600; color:
 window.orbit .usage-eye { min-width: 25px; min-height: 25px; border-radius: 13px; }
 window.orbit .usage-eye image { -gtk-icon-size: 17px; }
 window.orbit .usage-eye:hover, window.orbit .usage-eye.selected { background: #ffffff14; }
-window.orbit .usage-card progressbar trough { min-height: 4px; border-radius: 6px; background: #4b464f; border: none; box-shadow: none; }
-window.orbit .usage-card progressbar progress { min-height: 4px; border-radius: 6px; background: #eeeeee; border: none; box-shadow: none; }
-window.orbit .usage-card.claude progressbar progress { background: #ee9877; }
-window.orbit .usage-card.agy progressbar progress { background: #8bdba4; }
+window.orbit .usage-meter { margin: 4px 0; }
 
 /* Composer. */
 window.orbit .composer { background: #242326; border: 1px solid #ffffff18; border-radius: 20px; padding: 14px; }

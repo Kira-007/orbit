@@ -54,6 +54,29 @@ def px(value):
 USAGE_COLORS = {'codex': '#eeeeee', 'claude': '#ee9877', 'antigravity': '#8bdba4'}
 
 
+def _quota_meter(color, fraction):
+    """Thin quota bar drawn directly, so themes can't restyle or resize it."""
+    def draw(_area, ctx, width, height):
+        radius = height / 2
+
+        def pill(w):
+            ctx.new_sub_path()
+            ctx.arc(w - radius, radius, radius, -math.pi / 2, math.pi / 2)
+            ctx.arc(radius, radius, radius, math.pi / 2, 3 * math.pi / 2)
+            ctx.close_path()
+        ctx.set_source_rgb(0x4b / 255, 0x46 / 255, 0x4f / 255)
+        pill(width)
+        ctx.fill()
+        if fraction > 0:
+            ctx.set_source_rgb(*(int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)))
+            pill(max(height, width * min(1, fraction)))
+            ctx.fill()
+    meter = Gtk.DrawingArea(css_classes=['usage-meter'], hexpand=True, valign=Gtk.Align.CENTER)
+    meter.set_content_height(px(4))
+    meter.set_draw_func(draw)
+    return meter
+
+
 def reset_countdown(reset_ms, now):
     """'Resets in 2h 14m' style text for a quota window's reset time."""
     left = max(0, int((reset_ms - now) / 1000))
@@ -835,7 +858,7 @@ class PetWindow(Gtk.ApplicationWindow):
                 if window.get('reset'):
                     row.set_tooltip_text('Resets ' + time.strftime('%a %H:%M', time.localtime(window['reset'] / 1000)))
                 card.append(row)
-                card.append(Gtk.ProgressBar(fraction=0 if expired else window['remaining'] / 100))
+                card.append(_quota_meter(USAGE_COLORS[key], 0 if expired else window['remaining'] / 100))
                 if window.get('reset'):
                     countdown = Gtk.Label(label=reset_countdown(window['reset'], now_ms()), xalign=0, css_classes=['usage-reset'])
                     self._reset_labels.append((countdown, window['reset']))
