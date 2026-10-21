@@ -41,6 +41,7 @@ window.orbit .usage-name { font-size: 12px; font-weight: 600; color: #eee; margi
 window.orbit .usage-card.claude .usage-name { color: #ee9877; }
 window.orbit .usage-card.agy .usage-name { color: #8bdba4; }
 window.orbit .usage-indicator { color: #a49aa9; font-size: 12px; }
+window.orbit .usage-reset { color: #7d7584; font-size: 10px; margin-top: 3px; font-feature-settings: "tnum"; }
 window.orbit .usage-note { color: #938a99; font-size: 11px; }
 window.orbit .usage-row { margin: 6px 0 4px; }
 window.orbit .usage-row label { font-size: 11px; color: #aaa4ae; }

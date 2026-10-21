@@ -54,6 +54,16 @@ def px(value):
 USAGE_COLORS = {'codex': '#eeeeee', 'claude': '#ee9877', 'antigravity': '#8bdba4'}
 
 
+def reset_countdown(reset_ms, now):
+    """'Resets in 2h 14m' style text for a quota window's reset time."""
+    left = max(0, int((reset_ms - now) / 1000))
+    if not left:
+        return 'Resetting…'
+    days, hours, minutes = left // 86400, left % 86400 // 3600, left % 3600 // 60
+    text = f'{days}d {hours}h' if days else f'{hours}h {minutes}m' if hours else f'{max(1, minutes)}m'
+    return 'Resets in ' + text
+
+
 def _usage_label(label):
     """Shorten provider quota names the same way the Electron build did."""
     label = re.sub(r'^(gemini|3p)-(5h|weekly)$', lambda m: ('Gemini' if m[1] == 'gemini' else 'Claude / GPT') + ' · ' + ('Week' if m[2] == 'weekly' else '5h'), label)
@@ -147,6 +157,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self.refresh_usage()
         GLib.timeout_add_seconds(300, lambda: self.refresh_usage() or True)
         self._arm_random_flea()
+        GLib.timeout_add_seconds(30, self._tick_reset_labels)
         self.update_controls()
 
     # ---- construction -------------------------------------------------
@@ -760,6 +771,7 @@ class PetWindow(Gtk.ApplicationWindow):
         self._usage_signature = signature
         while child := self.usage_box.get_first_child():
             self.usage_box.remove(child)
+        self._reset_labels = []
         for key, name, css in (('claude', 'Claude', 'claude'), ('codex', 'Codex', 'codex'), ('antigravity', 'AGY', 'agy')):
             card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['usage-card', css])
             status = self.store.usage_status.get(key)
@@ -794,7 +806,16 @@ class PetWindow(Gtk.ApplicationWindow):
                     row.set_tooltip_text('Resets ' + time.strftime('%a %H:%M', time.localtime(window['reset'] / 1000)))
                 card.append(row)
                 card.append(Gtk.ProgressBar(fraction=0 if expired else window['remaining'] / 100))
+                if window.get('reset'):
+                    countdown = Gtk.Label(label=reset_countdown(window['reset'], now_ms()), xalign=0, css_classes=['usage-reset'])
+                    self._reset_labels.append((countdown, window['reset']))
+                    card.append(countdown)
             self.usage_box.append(card)
+
+    def _tick_reset_labels(self):
+        for label, reset in getattr(self, '_reset_labels', []):
+            label.set_label(reset_countdown(reset, now_ms()))
+        return True
 
     def select_usage_bar(self, provider, label, active):
         self.settings['usageBar'] = {'provider': provider, 'label': label} if active else None
