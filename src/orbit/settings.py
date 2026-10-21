@@ -11,7 +11,7 @@ HARNESSES = ['codex-cli', 'codex-desktop', 'claude', 'antigravity']
 DEFAULTS = {
     'animations': True, 'controls': False, 'hoverDelay': 750, 'completionMinutes': 10,
     'harness': 'codex-cli', 'usageBar': None, 'petScale': 1, 'movementSpeed': 700,
-    'petName': 'Orbit', 'activeSpritePet': '', 'spritePets': [],
+    'petName': 'Orbit', 'fleaMinutes': [8, 15], 'activeSpritePet': '', 'spritePets': [],
 }
 
 
@@ -95,7 +95,17 @@ def normalize(value=None):
         'hoverDelay': value['hoverDelay'] if value.get('hoverDelay') in (400, 750, 1200) else 750,
         'completionMinutes': value['completionMinutes'] if value.get('completionMinutes') in (5, 10, 30, 60) else 10,
         'harness': value['harness'] if value.get('harness') in HARNESSES else 'codex-cli',
+        'fleaMinutes': _flea_minutes(value.get('fleaMinutes')),
     }
+
+
+def _flea_minutes(value):
+    """Random flea interval as [low, high] minutes, each 1-240."""
+    try:
+        low, high = sorted(int(_num(v, 1, 240, 0)) for v in value)
+    except (TypeError, ValueError):
+        return list(DEFAULTS['fleaMinutes'])
+    return [low, high] if low else list(DEFAULTS['fleaMinutes'])
 
 
 def load():

@@ -545,6 +545,8 @@ class PetWindow(Gtk.ApplicationWindow):
         """Apply settings edited elsewhere, keeping the pet's centre fixed when it is resized."""
         old_w, old_h = self.pet_size()
         self.settings = value
+        if list(value['fleaMinutes']) != getattr(self, '_flea_range', None):
+            self._arm_random_flea()
         new_w, new_h = self.pet_size()
         self.sprite.resize(value['petScale'] * UI)
         self.pet_x += (old_w - new_w) / 2
@@ -983,7 +985,10 @@ class PetWindow(Gtk.ApplicationWindow):
             self.update_sprite()
 
     def _arm_random_flea(self):
-        GLib.timeout_add_seconds(random.randint(8 * 60, 15 * 60), self._random_flea)
+        if getattr(self, '_flea_timer', None):
+            GLib.source_remove(self._flea_timer)
+        low, high = self._flea_range = list(self.settings['fleaMinutes'])
+        self._flea_timer = GLib.timeout_add_seconds(random.randint(low * 60, high * 60), self._random_flea)
 
     def _random_flea(self):
         if self.get_visible() and not self.dragging and not self.panel_view and not self.fleas:
@@ -991,6 +996,7 @@ class PetWindow(Gtk.ApplicationWindow):
             pw, ph = self.pet_size()
             mx, my = min(max(40, pw / 2), width / 2), min(max(40, ph / 2), height / 2)
             self.add_flea(mx + random.random() * max(0, width - 2 * mx), my + random.random() * max(0, height - 2 * my))
+        self._flea_timer = None
         self._arm_random_flea()
         return False
 

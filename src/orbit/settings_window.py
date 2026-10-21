@@ -109,6 +109,17 @@ class SettingsWindow(Gtk.Window):
                                                lambda v: self.changed('hoverDelay', v, True))))
         box.append(_row('Recent tasks', _choice([(5, '5 minutes'), (10, '10 minutes'), (30, '30 minutes'), (60, '1 hour')],
                                                 self.settings['completionMinutes'], lambda v: self.changed('completionMinutes', v, True))))
+        flea = Gtk.Box(spacing=6, valign=Gtk.Align.CENTER)
+        spins = [Gtk.SpinButton.new_with_range(1, 240, 1) for _ in range(2)]
+        for spin, value in zip(spins, self.settings['fleaMinutes']):
+            spin.set_value(value)
+            spin.connect('value-changed', lambda *_: self.changed('fleaMinutes', sorted(round(s.get_value()) for s in spins)))
+        flea.append(spins[0])
+        flea.append(Gtk.Label(label='to'))
+        flea.append(spins[1])
+        flea.append(Gtk.Label(label='min'))
+        flea.set_tooltip_text('A flea appears at a random time within this range.')
+        box.append(_row('Random flea every', flea))
         box.append(_row('Default harness', _choice(HARNESSES, self.settings['harness'], lambda v: self.changed('harness', v, True))))
         actions = Gtk.Box(spacing=8, halign=Gtk.Align.END, margin_top=12)
         reset = Gtk.Button(label='Reset position')
