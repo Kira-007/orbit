@@ -324,7 +324,7 @@ class PetWindow(Gtk.ApplicationWindow):
             if monitor.get_connector() == saved.get('monitor'):
                 LayerShell.set_monitor(self, monitor)
                 self._pinned_monitor = monitor
-        self.pet_x, self.pet_y = saved.get('x', -1), saved.get('y', -1)
+        self.pet_x, self.pet_y = saved.get('x'), saved.get('y')
 
     def save_position(self):
         try:
@@ -341,15 +341,24 @@ class PetWindow(Gtk.ApplicationWindow):
     def move_pet(self, x, y):
         width, height = self._area()
         pw, ph = self.pet_size()
-        self.pet_x, self.pet_y = max(0, min(x, width - pw)), max(0, min(y, height - ph))
+        self.pet_x, self.pet_y = self._clamp(x, y)
         self.layout()
+
+    def _clamp(self, x, y):
+        """Keep the drawn pet on screen; its sheet's transparent margin may go past the edges."""
+        width, height = self._area()
+        pw, ph = self.pet_size()
+        vx, vy, vw, vh = self.sprite.visible_rect()
+        sx, sy = pw / max(1, self.sprite.get_width() or pw), ph / max(1, self.sprite.get_height() or ph)
+        vx, vy, vw, vh = vx * sx, vy * sy, vw * sx, vh * sy
+        return max(-vx, min(x, width - vx - vw)), max(-vy, min(y, height - vy - vh))
 
     def layout(self):
         width, height = self._area()
         pw, ph = self.pet_size()
-        if self.pet_x < 0:
+        if self.pet_x is None or self.pet_y is None:
             self.pet_x, self.pet_y = width - pw - 60, height - ph - 120
-        self.pet_x, self.pet_y = max(0, min(self.pet_x, width - pw)), max(0, min(self.pet_y, height - ph))
+        self.pet_x, self.pet_y = self._clamp(self.pet_x, self.pet_y)
         self._place(self.sprite, self.pet_x, self.pet_y)
         top, bottom = self.sprite.visible_bounds()
         above = self.pet_y > height - self.pet_y - ph
@@ -366,9 +375,15 @@ class PetWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self.layout)
         bar_y = round(self.pet_y + top - offset - th if above else self.pet_y + bottom + offset)
         center = self.pet_x + pw / 2
-        self._place(self.toolbar, round(center - tw / 2), bar_y)
+        bar_x = round(max(0, min(center - tw / 2, width - tw)))
+        # Near a screen edge the toolbar is pushed inward; the resting bar still sits under the pet.
+        shift = max(MINI_W / 2 - tw / 2, min(center - bar_x - tw / 2, tw / 2 - MINI_W / 2))
+        if shift != getattr(self, 'bar_shift', 0):
+            self.bar_shift = shift
+            self.mini_usage.queue_draw()
+        self._place(self.toolbar, bar_x, bar_y)
         # The resting bar morphs into the toolbar: morph 0 is the 32x6 bar, 1 the full toolbar.
-        self._place(self.mini_usage, round(center - tw / 2), bar_y)
+        self._place(self.mini_usage, bar_x, bar_y)
         if self.panel.get_visible():
             # Size the scrolled views to their content, capped at the room on that side of the pet.
             room = (bar_y - GAP - 8) if above else (height - bar_y - th - GAP - 8)
@@ -749,7 +764,7 @@ class PetWindow(Gtk.ApplicationWindow):
         t = self.morph
         w, h = MINI_W + (width - MINI_W) * t, MINI_H + (height - MINI_H) * t
         rest = height - MINI_H - px(4) if getattr(self, 'above', False) else px(4)
-        x, y = (width - w) / 2, rest * (1 - t)
+        x, y = (width - w) / 2 + getattr(self, 'bar_shift', 0) * (1 - t), rest * (1 - t)
         radius = min(h / 2, px(12))
 
         def rounded(rx, rw):
