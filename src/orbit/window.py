@@ -708,10 +708,11 @@ class PetWindow(Gtk.ApplicationWindow):
         shown = tasks if self.stack_expanded else tasks[:1]
         for task in shown:
             self.cards.append(self._card(task))
-        if not self.stack_expanded:
-            # Cards behind the front one peek out underneath it, in their provider colours.
-            for depth, task in enumerate(tasks[1:3], 1):
-                self.cards.append(Gtk.Box(css_classes=['peek', f'peek{depth}', _card_css(task)], can_target=False, opacity=1 - .2 * depth))
+        behind = [] if self.stack_expanded else [_card_css(task) for task in tasks[1:3]]
+        if behind:
+            # Cards behind the front one peek out underneath it as inset layers, in their provider colours.
+            self.cards.get_first_child().add_css_class(f'under{len(behind)}')
+            self.cards.get_first_child().add_css_class('under-' + '-'.join(behind))
 
     def _card(self, task):
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, css_classes=['card', _card_css(task)], spacing=2)

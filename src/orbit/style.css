@@ -27,12 +27,29 @@ window.orbit .card .dismiss { min-width: 20px; min-height: 20px; border-radius: 
 window.orbit .card .dismiss:hover { background: #ffffff20; color: #fff; }
 window.orbit .card .card-title { font-size: 12px; font-weight: 600; color: #fff; margin-right: 24px; }
 window.orbit .card .task-activity { font-size: 11px; color: #ffffffaa; margin-right: 24px; margin-top: 1px; }
-window.orbit .peek { min-height: 7px; border-radius: 0 0 18px 18px; background: #303030; }
-window.orbit .peek1 { margin: 0 6px; }
-window.orbit .peek2 { margin: 0 12px; }
-window.orbit .peek.claude { background: #b85f3d; }
-window.orbit .peek.codex-desktop { background: #626262; }
-window.orbit .peek.agy { background: #286b40; }
+/* Cards behind the front one, drawn as inset layers tucked under it (generated). */
+window.orbit .card.under1 { margin-bottom: 7px; }
+window.orbit .card.under2 { margin-bottom: 14px; }
+window.orbit .card.under-claude { box-shadow: 0 13px 0 -6px alpha(#b85f3d, .8); }
+window.orbit .card.under-claude-claude { box-shadow: 0 13px 0 -6px alpha(#b85f3d, .8), 0 26px 0 -12px alpha(#b85f3d, .6); }
+window.orbit .card.under-claude-codex-desktop { box-shadow: 0 13px 0 -6px alpha(#b85f3d, .8), 0 26px 0 -12px alpha(#626262, .6); }
+window.orbit .card.under-claude-codex-cli { box-shadow: 0 13px 0 -6px alpha(#b85f3d, .8), 0 26px 0 -12px alpha(#303030, .6); }
+window.orbit .card.under-claude-agy { box-shadow: 0 13px 0 -6px alpha(#b85f3d, .8), 0 26px 0 -12px alpha(#286b40, .6); }
+window.orbit .card.under-codex-desktop { box-shadow: 0 13px 0 -6px alpha(#626262, .8); }
+window.orbit .card.under-codex-desktop-claude { box-shadow: 0 13px 0 -6px alpha(#626262, .8), 0 26px 0 -12px alpha(#b85f3d, .6); }
+window.orbit .card.under-codex-desktop-codex-desktop { box-shadow: 0 13px 0 -6px alpha(#626262, .8), 0 26px 0 -12px alpha(#626262, .6); }
+window.orbit .card.under-codex-desktop-codex-cli { box-shadow: 0 13px 0 -6px alpha(#626262, .8), 0 26px 0 -12px alpha(#303030, .6); }
+window.orbit .card.under-codex-desktop-agy { box-shadow: 0 13px 0 -6px alpha(#626262, .8), 0 26px 0 -12px alpha(#286b40, .6); }
+window.orbit .card.under-codex-cli { box-shadow: 0 13px 0 -6px alpha(#303030, .8); }
+window.orbit .card.under-codex-cli-claude { box-shadow: 0 13px 0 -6px alpha(#303030, .8), 0 26px 0 -12px alpha(#b85f3d, .6); }
+window.orbit .card.under-codex-cli-codex-desktop { box-shadow: 0 13px 0 -6px alpha(#303030, .8), 0 26px 0 -12px alpha(#626262, .6); }
+window.orbit .card.under-codex-cli-codex-cli { box-shadow: 0 13px 0 -6px alpha(#303030, .8), 0 26px 0 -12px alpha(#303030, .6); }
+window.orbit .card.under-codex-cli-agy { box-shadow: 0 13px 0 -6px alpha(#303030, .8), 0 26px 0 -12px alpha(#286b40, .6); }
+window.orbit .card.under-agy { box-shadow: 0 13px 0 -6px alpha(#286b40, .8); }
+window.orbit .card.under-agy-claude { box-shadow: 0 13px 0 -6px alpha(#286b40, .8), 0 26px 0 -12px alpha(#b85f3d, .6); }
+window.orbit .card.under-agy-codex-desktop { box-shadow: 0 13px 0 -6px alpha(#286b40, .8), 0 26px 0 -12px alpha(#626262, .6); }
+window.orbit .card.under-agy-codex-cli { box-shadow: 0 13px 0 -6px alpha(#286b40, .8), 0 26px 0 -12px alpha(#303030, .6); }
+window.orbit .card.under-agy-agy { box-shadow: 0 13px 0 -6px alpha(#286b40, .8), 0 26px 0 -12px alpha(#286b40, .6); }
 window.orbit .empty { background: #252525; border-radius: 22px; padding: 18px; color: #ddd; font-size: 12px; }
 
 /* Usage cards. */
