@@ -20,6 +20,6 @@ if record.get('hooks'):
  if p.exists():
   d=json.loads(p.read_text());entry=d.get('orbit-agent-pet',{})
   if any(str(ROOT/rel) in json.dumps(entry) for rel in ('emit.py','scripts/emit.py')):d.pop('orbit-agent-pet',None);p.write_text(json.dumps(d,indent=2)+'\n')
-pathlib.Path(record['launcher']).unlink(missing_ok=True)
+if record.get('launcher'):pathlib.Path(record['launcher']).unlink(missing_ok=True)
 manifest.unlink()
 print('Orbit integration removed. Quit Orbit from the tray. Settings and activity data retained.')

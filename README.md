@@ -20,10 +20,9 @@ git clone https://github.com/Kira-007/orbit.git
 cd orbit
 python3 install.py --check
 python3 install.py
-./start-gtk.sh
 ```
 
-Run as your own user, **without sudo**. Keep the checkout at this location: the launcher and startup entry point to it. Installation backs up your Lua configuration, adds an Orbit-only floating/pinned rule and startup entry, and creates an application launcher. It uses your HOME and XDG directories. It does not patch any agent application.
+Run as your own user, **without sudo**. Keep the checkout at this location: the startup entry points to it. Installation backs up your Lua configuration, adds an Orbit-only floating/pinned rule, the Win+Y summon binding and a Hyprland startup entry, then starts the pet. It adds no application-menu launcher. It uses your HOME and XDG directories. It does not patch any agent application.
 
 For a different Lua config path:
 
@@ -64,7 +63,7 @@ Settings, uploaded sprites and hook events stay in `$XDG_STATE_HOME/agent-pet` (
 
 ## Uninstall
 
-Quit Orbit from its tray, then run `python3 uninstall.py`. It removes only the portable installation's configuration block, launcher and hooks. User settings, sprites, task history and backups are retained.
+Quit Orbit from its tray, then run `python3 uninstall.py`. It removes only the portable installation's configuration block and hooks. User settings, sprites, task history and backups are retained.
 
 ## Development
 

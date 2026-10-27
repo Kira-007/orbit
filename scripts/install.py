@@ -50,12 +50,13 @@ if args.hooks:
             entries.append(group)
     edit(HOME/'.claude/settings.json',claude)
     edit(HOME/'.gemini/config/hooks.json',lambda d:d.update({'orbit-agent-pet':{'enabled':True,'PreInvocation':[{'type':'command','command':command('antigravity','working'),'timeout':3}],'Stop':[{'type':'command','command':command('antigravity','done'),'timeout':3}]}}))
-apps=DATA/'applications';apps.mkdir(parents=True,exist_ok=True)
-# Desktop Entry quoting differs from shell quoting.
-def desktop_quote(value):return '"'+str(value).replace('\\','\\\\').replace('"','\\"').replace('`','\\`').replace('$','\\$')+'"'
-launcher=apps/'orbit.desktop'
-launcher.write_text('[Desktop Entry]\nType=Application\nName=Orbit\nComment=Coding agent companion for Hyprland\nExec='+desktop_quote(ROOT/'start-gtk.sh')+'\nIcon='+str(ROOT/'assets/icons/tray.png')+'\nTerminal=false\nCategories=Utility;Development;\n')
-record.update(root=str(ROOT),config=str(config),launcher=str(launcher),hooks=args.hooks or record.get('hooks',False))
+# Orbit runs from Hyprland startup, not an app-menu launcher; drop launchers older installs created.
+for name in ('orbit.desktop','orbit-agent-pet.desktop'):(DATA/'applications'/name).unlink(missing_ok=True)
+record.pop('launcher',None)
+record.update(root=str(ROOT),config=str(config),hooks=args.hooks or record.get('hooks',False))
 manifest.write_text(json.dumps(record,indent=2)+'\n')
-print('Installed Orbit for this user. Run ./start-gtk.sh; '+('autostart enabled.' if not args.no_autostart else 'autostart disabled.'))
+# Start it now too, so there's no need to log out first; a running pet just toggles, so skip it then.
+running=subprocess.run(['pgrep','-f','^python3 -m orbit'],capture_output=True).returncode==0
+if not running:subprocess.Popen([str(ROOT/'start-gtk.sh')],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+print('Installed Orbit for this user. '+('It starts with Hyprland.' if not args.no_autostart else 'Autostart disabled; run ./start-gtk.sh to start it.'))
 if args.hooks:print('Restart Claude/AGY to load hooks. Hook support depends on your CLI version.')

@@ -1,54 +1,118 @@
 [
   {
+    "id": "hornet",
+    "name": "Hornet",
+    "facing": "left",
+    "offsetY": 2,
+    "spriteSheets": {
+      "idle": {
+        "sheet": "assets/hornet/idle.png",
+        "name": "Hornet · Calm idle and looking around",
+        "frames": 125,
+        "columns": 16,
+        "fps": 10
+      },
+      "walking": {
+        "sheet": "assets/hornet/walking.png",
+        "name": "Hornet · Run",
+        "frames": 10,
+        "columns": 10,
+        "fps": 10
+      },
+      "working": {
+        "sheet": "assets/hornet/working.png",
+        "name": "Hornet · Needolin Play",
+        "frames": 11,
+        "columns": 11,
+        "fps": 11
+      },
+      "waiting": {
+        "sheet": "assets/hornet/waiting.png",
+        "name": "Hornet · Map Idle",
+        "frames": 6,
+        "columns": 6,
+        "fps": 6
+      },
+      "done": {
+        "sheet": "assets/hornet/done.png",
+        "name": "Beastling Call Fail Windy",
+        "frames": 16,
+        "columns": 8,
+        "fps": 10
+      },
+      "error": {
+        "sheet": "assets/hornet/error.png",
+        "name": "Hornet · Idle Hurt",
+        "frames": 8,
+        "columns": 8,
+        "fps": 8
+      },
+      "unknown": {
+        "sheet": "assets/hornet/unknown.png",
+        "name": "Hornet · LookUp",
+        "frames": 8,
+        "columns": 8,
+        "fps": 8
+      },
+      "dragging": {
+        "sheet": "assets/hornet/dragging.png",
+        "name": "Umbrella Float",
+        "frames": 11,
+        "columns": 8,
+        "fps": 10
+      }
+    }
+  },
+  {
     "id": "beatrice-legeling",
     "name": "Beatrice",
     "facing": "right",
     "spriteSheets": {
       "idle": {
         "sheet": "assets/beatrice-legeling/idle.png",
-        "name": "Beatrice \u00b7 Idle",
+        "name": "Beatrice · Idle",
         "frames": 6,
         "columns": 6,
         "fps": 1
       },
       "walking": {
         "sheet": "assets/beatrice-legeling/walking.png",
-        "name": "Beatrice \u00b7 Walking",
+        "name": "Beatrice · Walking",
         "frames": 8,
         "columns": 8,
         "fps": 8
       },
       "working": {
         "sheet": "assets/beatrice-legeling/working.png",
-        "name": "Beatrice \u00b7 Working",
+        "name": "Beatrice · Working",
         "frames": 6,
         "columns": 6,
         "fps": 8
       },
       "waiting": {
         "sheet": "assets/beatrice-legeling/waiting.png",
-        "name": "Beatrice \u00b7 Waiting",
+        "name": "Beatrice · Waiting",
         "frames": 6,
         "columns": 6,
         "fps": 6
       },
       "done": {
         "sheet": "assets/beatrice-legeling/done.png",
-        "name": "Beatrice \u00b7 Done",
+        "name": "Beatrice · Done",
         "frames": 5,
         "columns": 5,
         "fps": 7
       },
       "error": {
         "sheet": "assets/beatrice-legeling/error.png",
-        "name": "Beatrice \u00b7 Error",
+        "name": "Beatrice · Error",
         "frames": 8,
         "columns": 8,
         "fps": 7
       },
       "unknown": {
         "sheet": "assets/beatrice-legeling/unknown.png",
-        "name": "Beatrice \u00b7 Unknown",
+        "name": "Beatrice · Unknown",
         "frames": 6,
         "columns": 6,
         "fps": 5
