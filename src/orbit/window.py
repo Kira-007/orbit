@@ -92,7 +92,7 @@ def _usage_label(label):
     label = re.sub(r'^(gemini|3p)-(5h|weekly)$', lambda m: ('Gemini' if m[1] == 'gemini' else 'Claude / GPT') + ' · ' + ('Week' if m[2] == 'weekly' else '5h'), label)
     for old, new in (('Gemini Models', 'Gemini'), ('Claude and GPT models', 'Claude / GPT'), ('Five Hour Limit Remaining', '5h'), ('Weekly Limit Remaining', 'Week')):
         label = label.replace(old, new)
-    return {'Session': '5h', 'Weekly': 'Week'}.get(label, label)
+    return {'Session': '5h', 'Weekly': 'Week', 'Monthly': 'Month'}.get(label, label)
 
 
 def _age(t):

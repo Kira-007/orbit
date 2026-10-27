@@ -22,6 +22,20 @@ def _finite(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
+def _window_label(minutes, fallback):
+    """Name a quota window by its length; keeps 'Session'/'Weekly' so saved bar selections still match."""
+    if not _finite(minutes) or minutes <= 0:
+        return fallback
+    if minutes <= 24 * 60:
+        return 'Session' if minutes == 300 else f'{round(minutes / 60)}h'
+    days = minutes / 1440
+    if 6 <= days <= 8:
+        return 'Weekly'
+    if 27 <= days <= 32:
+        return 'Monthly'
+    return f'{round(days)}d'
+
+
 def normalize_codex(limits, stamp):
     if not isinstance(limits, dict) or not _finite(stamp):
         return None
@@ -30,6 +44,8 @@ def normalize_codex(limits, stamp):
         w = limits.get(key)
         if not isinstance(w, dict) or not _finite(w.get('used_percent')):
             continue
+        # Slots don't fix the period (a plan may put a monthly window in secondary); the duration does.
+        label = _window_label(w.get('window_minutes'), label)
         windows.append({'label': label, 'remaining': round(max(0, min(100, 100 - w['used_percent']))),
                         'reset': w['resets_at'] * 1000 if _finite(w.get('resets_at')) else None,
                         'minutes': w.get('window_minutes')})
