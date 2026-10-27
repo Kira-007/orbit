@@ -154,7 +154,8 @@ class PetWindow(Gtk.ApplicationWindow):
         for edge in (LayerShell.Edge.TOP, LayerShell.Edge.BOTTOM, LayerShell.Edge.LEFT, LayerShell.Edge.RIGHT):
             LayerShell.set_anchor(self, edge, True)
         LayerShell.set_exclusive_zone(self, -1)
-        LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.ON_DEMAND)
+        # No keyboard focus by default, so hovering the pet never steals focus; the composer asks for it.
+        LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.NONE)
         self._restore_position()
 
         self.fixed = Gtk.Fixed()
@@ -673,6 +674,8 @@ class PetWindow(Gtk.ApplicationWindow):
     def open_panel(self, view):
         was = self.panel_view
         self.panel_view = view
+        if view != 'chat':
+            LayerShell.set_keyboard_mode(self, LayerShell.KeyboardMode.NONE)
         if view:
             self.panel.set_visible(True)
             self.layout()
