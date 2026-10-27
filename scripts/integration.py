@@ -8,7 +8,8 @@ STATE=pathlib.Path(os.environ.get('XDG_STATE_HOME',HOME/'.local/state'))/'agent-
 START='-- BEGIN Orbit portable'
 END='-- END Orbit portable'
 def remove_block(text):
-    return re.sub(re.escape(START)+r'.*?'+re.escape(END)+r'\n?', '',text,flags=re.S)
+    # Also drops blocks from older installers (agent pet, startup, summon), so they don't launch a second pet.
+    return re.sub(r'-- BEGIN Orbit[^\n]*\n.*?-- END Orbit[^\n]*\n?', '',text,flags=re.S)
 def lua_string(value):
     import json
     return json.dumps(str(value),ensure_ascii=False)
@@ -18,6 +19,6 @@ def summon_binding(script=None):
     return 'hl.bind("SUPER + Y", function() local cursor = hl.get_cursor_pos(); if cursor then hl.exec_cmd('+command+' .. " " .. cursor.x .. " " .. cursor.y) end end, { description = "[Orbit] Run pet to cursor" })'
 
 def block(autostart):
-    rule='hl.window_rule({ name = "orbit_portable", match = { class = "^(agent-pet|orbit-agent-pet|foundation\\.orbit\\.AgentPet)$", title = "^Orbit (Agent Pet|Flea)$" }, float = true, pin = true, no_follow_mouse = true, no_initial_focus = true, border_size = 0, no_blur = true, no_shadow = true, no_anim = true, opacity = 1.0 })\nhl.window_rule({ name = "orbit_settings", match = { class = "^foundation\\.orbit\\.AgentPet$", title = "^(Orbit Settings|Customize)$" }, float = true })'
+    rule='hl.window_rule({ name = "orbit_portable", match = { class = "^(agent-pet|orbit-agent-pet|foundation\\\\.orbit\\\\.AgentPet)$", title = "^Orbit (Agent Pet|Flea)$" }, float = true, pin = true, no_follow_mouse = true, no_initial_focus = true, border_size = 0, no_blur = true, no_shadow = true, no_anim = true, opacity = 1.0 })\nhl.window_rule({ name = "orbit_settings", match = { class = "^foundation\\\\.orbit\\\\.AgentPet$", title = "^(Orbit Settings|Customize)$" }, float = true })'
     startup='\nhl.on("hyprland.start", function() hl.exec_cmd('+lua_string(shlex.quote(str(ROOT/'start-gtk.sh')))+') end)' if autostart else ''
     return START+'\n'+rule+'\n'+summon_binding()+startup+'\n'+END+'\n'
